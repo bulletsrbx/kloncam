@@ -199,8 +199,8 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
     <div class="small">Ein Raum: Stell das Handy fest hin und bewege es zwischen den Aufnahmen nicht. Jeder bleibt auf seiner Seite der gestrichelten Linie.</div>
     <div class="field"><label for="optPreroll">Vorlauf vor deinem Einsatz</label>
       <select id="optPreroll"><option value="0">aus</option><option value="1">1 s</option><option value="2">2 s</option><option value="3">3 s</option><option value="5">5 s</option></select></div>
-    <div class="field"><label for="optHeadphones">Ich nutze Kopfhörer</label><input type="checkbox" id="optHeadphones"></div>
-    <div class="small">An: natürlicher, klarer Ton ohne Filter. Aus: die App filtert den Lautsprecher-Ton aus dem Mikro heraus, dadurch klingt die Stimme etwas dumpfer.</div>
+    <div class="field"><label for="optMicFilter">Sprachfilter vom Handy</label><input type="checkbox" id="optMicFilter"></div>
+    <div class="small">Normalerweise aus lassen: Die App gleicht beide Seiten selbst auf die gleiche Lautstärke an und dämpft das Lautsprecher-Echo. Nur einschalten, wenn es im Raum stark rauscht.</div>
     <div class="field"><label for="optMirror">Selfie spiegeln</label><input type="checkbox" id="optMirror"></div>
     <div class="field"><label for="optDivider">Trennlinie</label><input type="checkbox" id="optDivider"></div>
     <div class="small">Das fertige Video ist 1080 × 1920 (9:16) für TikTok.</div>
@@ -247,9 +247,11 @@ const CAM_TYPES = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=a
 const EXPORT_TYPES = CAM_TYPES;
 
 // ---------- settings ----------
-const settings = { v: 2, layout: 'lr', look: 'room', split: 0.5, feather: 80, preroll: 2, mirror: true, divider: false, facing: 'user', headphones: false };
+const settings = { v: 3, layout: 'lr', look: 'room', split: 0.5, feather: 80, preroll: 2, mirror: true, divider: false, facing: 'user', micFilter: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('kloncam.settings') || '{}')); } catch (e) {}
-if (settings.v !== 2) Object.assign(settings, { v: 2, look: 'room', split: 0.5, feather: 80, divider: false });
+if (settings.v < 2) Object.assign(settings, { look: 'room', split: 0.5, feather: 80, divider: false });
+if (settings.v < 3) { settings.micFilter = false; delete settings.headphones; }
+settings.v = 3;
 function saveSettings() { try { localStorage.setItem('kloncam.settings', JSON.stringify(settings)); } catch (e) {} }
 
 // ---------- state ----------
@@ -400,22 +402,75 @@ function positionAt(t) {
   }));
 }
 
+// ---------- audio mix ----------
+// Lays every take onto one timeline per side, brings both sides to the same speaking level and
+// ducks a side while it only carries the other side's voice picked up from the phone speaker.
+function buildMix(only) {
+  const sr = ac.sampleRate, n = Math.ceil((total() + 0.3) * sr), WIN = 1024, nw = Math.ceil(n / WIN);
+  const tr = { A: new Float32Array(n), B: new Float32Array(n) };
+  for (const s of state.segs) {
+    const b = s.buffer; if (!b) continue;
+    const out = tr[s.side], at = Math.round(s.start * sr), from = Math.round(s.offset * b.sampleRate);
+    const len = Math.min(Math.round(s.dur * sr), b.length - from, n - at);
+    const chs = [];
+    for (let c = 0; c < b.numberOfChannels; c++) chs.push(b.getChannelData(c));
+    for (let i = 0; i < len; i++) { let v = 0; for (const ch of chs) v += ch[from + i]; out[at + i] = v / chs.length; }
+  }
+  const rms = {}, gain = {}, env = {};
+  for (const side of SIDES) {
+    const d = tr[side], r = new Float32Array(nw);
+    for (let w = 0; w < nw; w++) {
+      let acc = 0; const e = Math.min(n, (w + 1) * WIN);
+      for (let i = w * WIN; i < e; i++) acc += d[i] * d[i];
+      r[w] = Math.sqrt(acc / WIN);
+    }
+    rms[side] = r;
+    // speaking level = 90th percentile of the non-silent windows
+    const loud = Array.from(r).filter(x => x > 0.003).sort((a, b) => a - b);
+    const level = loud.length ? loud[Math.floor(loud.length * 0.9)] : 0;
+    gain[side] = level > 0 ? Math.min(8, Math.max(0.2, 0.12 / level)) : 1;
+  }
+  for (const side of SIDES) {
+    const o = other(side), e = new Float32Array(nw);
+    let gv = 1;
+    for (let w = 0; w < nw; w++) {
+      const mine = rms[side][w] * gain[side], theirs = rms[o][w] * gain[o];
+      const target = theirs > 0.02 && mine < theirs * 0.4 ? 0.06 : 1;
+      gv += (target - gv) * (target > gv ? 0.7 : 0.2); // open fast, close gently
+      e[w] = gv;
+    }
+    env[side] = e;
+  }
+  const buf = ac.createBuffer(1, n, sr), mix = buf.getChannelData(0);
+  for (const side of SIDES) {
+    if (only && side !== only) continue;
+    const d = tr[side], e = env[side], gn = gain[side];
+    for (let i = 0; i < n; i++) {
+      const p = Math.max(0, i / WIN - 0.5), w0 = Math.min(nw - 1, Math.floor(p)), w1 = Math.min(nw - 1, w0 + 1), f = p - Math.floor(p);
+      mix[i] += d[i] * gn * (e[w0] + (e[w1] - e[w0]) * f);
+    }
+  }
+  for (let i = 0; i < n; i++) { // soft limiter
+    const a = Math.abs(mix[i]);
+    if (a > 0.9) mix[i] = Math.sign(mix[i]) * (0.9 + 0.1 * Math.tanh((a - 0.9) / 0.1));
+  }
+  return buf;
+}
+
 // ---------- playback engine (audio clock is the master) ----------
 async function startPlayback(o) {
   await ac.resume();
+  const mix = o.mix || buildMix(o.only);
   await positionAt(o.from);
   const out = ac.createGain();
   out.connect(ac.destination);
   if (o.dest) out.connect(o.dest);
   const C0 = ac.currentTime + 0.15, srcs = [];
-  for (const s of state.segs) {
-    s.video.muted = !!s.buffer || (o.only && s.side !== o.only);
-    if (!s.buffer || (o.only && s.side !== o.only)) continue;
-    const skip = Math.max(0, o.from - s.start), len = s.dur - skip, off = s.offset + skip;
-    if (len <= 0.02 || off >= s.buffer.duration) continue;
+  for (const s of state.segs) s.video.muted = !!s.buffer || (o.only && s.side !== o.only);
+  if (o.from < mix.duration) {
     const src = ac.createBufferSource();
-    src.buffer = s.buffer; src.connect(out);
-    src.start(C0 + Math.max(0, s.start - o.from), off, Math.min(len, s.buffer.duration - off));
+    src.buffer = mix; src.connect(out);
+    src.start(C0, o.from);
     srcs.push(src);
   }
   play = { from: o.from, C0, live: o.live || null, liveFrom: o.liveFrom ?? Infinity, out, srcs,
@@ -570,10 +625,10 @@ async function openCamera() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
   camStream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: settings.facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-    // with headphones there is no speaker bleed, so skip the voice filters that muffle the voice and duck playback
-    audio: settings.headphones
-      ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-      : { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    // raw mic by default: the phone's voice filters pump the level mid-sentence; buildMix() levels and de-bleeds instead
+    audio: settings.micFilter
+      ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      : { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
   });
   camVideo.srcObject = camStream;
   await camVideo.play().catch(() => {});
@@ -692,6 +747,7 @@ async function startExport(only) {
   $('#expRun').hidden = false; $('#expDone').hidden = true; $('#expBar').style.width = '0%';
   $('#exportSheet').hidden = false;
   await positionAt(0);
+  const mix = buildMix(only); // before the recorder starts, so the file does not open on a still frame
   const dest = ac.createMediaStreamDestination();
   const vs = stage.captureStream(30);
   const stream = new MediaStream([...vs.getVideoTracks(), ...dest.stream.getAudioTracks()]);
@@ -703,7 +759,7 @@ async function startExport(only) {
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.start(500);
   Object.assign(exportCtl, { rec, chunks, vs, total: tot, mime: rec.mimeType || mime, pending: false });
-  await startPlayback({ from: 0, dest, only });
+  await startPlayback({ from: 0, dest, only, mix });
 }
 async function finishExport(cancel) {
   const e = exportCtl; if (!e || e.done || e.pending) return;
@@ -824,7 +880,7 @@ $('#btnSettings').addEventListener('click', () => {
   $('#optFeather').value = String(settings.feather);
   $('#optPreroll').value = String(settings.preroll);
   $('#optMirror').checked = settings.mirror;
-  $('#optHeadphones').checked = settings.headphones;
+  $('#optMicFilter').checked = settings.micFilter;
   $('#optDivider').checked = settings.divider;
   $('#settingsSheet').hidden = false;
 });
@@ -834,8 +890,8 @@ $('#optSplit').addEventListener('input', e => { settings.split = +e.target.value
 $('#optFeather').addEventListener('change', e => { settings.feather = +e.target.value; saveSettings(); });
 $('#optPreroll').addEventListener('change', e => { settings.preroll = +e.target.value; saveSettings(); updateUI(); });
 $('#optMirror').addEventListener('change', e => { settings.mirror = e.target.checked; saveSettings(); });
-$('#optHeadphones').addEventListener('change', async e => {
-  settings.headphones = e.target.checked; saveSettings();
+$('#optMicFilter').addEventListener('change', async e => {
+  settings.micFilter = e.target.checked; saveSettings();
   if (camOn && state.mode === 'idle') { try { await openCamera(); } catch (err) { toast('Mikrofon ließ sich nicht neu starten.'); } }
 });
 $('#optDivider').addEventListener('change', e => { settings.divider = e.target.checked; saveSettings(); });
