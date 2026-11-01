@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KlonCam">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e0f13">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>KlonCam</title>
+<style>
+/* Layout: phone = stage on top, controls below; wide screens = stage left, panel right. Dark camera-app look by choice. */
+:root{
+  --bg:#0e0f13; --panel:#171920; --panel2:#1f222b; --line:#2b2f3a;
+  --fg:#eef0f5; --muted:#8d92a3;
+  --sideA:#ff9f43; --sideB:#4dd6c4; --rec:#ff3b4e;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+[hidden]{display:none!important}
+#app{min-height:100%;display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:max(12px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header{display:flex;align-items:center;justify-content:space-between;padding-block:10px}
+.brand{font-weight:850;font-size:21px;letter-spacing:-.03em}
+.brand .a{color:var(--sideA)} .brand .b{color:var(--sideB)}
+main{display:grid;gap:16px;align-items:start}
+.stage{position:relative;aspect-ratio:9/16;height:min(60dvh,calc((100vw - 32px)*16/9));max-width:100%;margin-inline:auto;border-radius:14px;overflow:hidden;background:#000}
+.stage canvas{width:100%;height:100%;display:block}
+.overlay{position:absolute;inset:0;pointer-events:none}
+.tag{position:absolute;top:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:999px;background:rgba(0,0,0,.55);display:flex;gap:5px;align-items:center}
+.tag i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.tag.A{left:8px} .tag.A i{background:var(--sideA)}
+.tag.B{left:calc(50% + 8px)} .tag.B i{background:var(--sideB)}
+.stage.tb .tag.B{left:8px;top:calc(50% + 8px)}
+.tag.rec{background:var(--rec);color:#fff}
+.tag.rec i{background:#fff;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+#countdown{position:absolute;inset:0;display:grid;place-items:center;font-size:120px;font-weight:900;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.6)}
+#recTimer{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);padding:4px 10px;border-radius:999px;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
+#busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,11,15,.7);font-weight:600;text-align:center;padding:20px}
+#startCard{position:absolute;inset:0;pointer-events:auto;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:22px;background:linear-gradient(90deg,rgba(255,159,67,.13) 0 50%,rgba(77,214,196,.13) 50% 100%),#101117}
+#startCard h1{margin:0;font-size:24px;line-height:1.15;letter-spacing:-.02em;text-wrap:balance}
+#startCard ol{margin:0;padding-left:18px;color:#c9ccd6;font-size:14px;display:grid;gap:6px}
+#startCard .note{font-size:13px;color:var(--muted)}
+#startErr{color:#ff8a95;font-size:14px}
+.panel{display:flex;flex-direction:column;gap:14px;min-width:0}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
+.seg button{border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}
+.seg button small{font-weight:500;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.seg button.on[data-side=A]{background:var(--sideA);color:#1a1206}
+.seg button.on[data-side=B]{background:var(--sideB);color:#05201c}
+.seg button.on small{color:inherit;opacity:.75}
+.seg button:disabled{cursor:default}
+.ctrl{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
+.btn{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 12px;font-weight:650;cursor:pointer;text-align:center}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.danger{color:#ff8a95}
+.btn:focus-visible,.seg button:focus-visible,.rec:focus-visible{outline:2px solid var(--sideB);outline-offset:2px}
+.rec{width:78px;height:78px;border-radius:50%;border:4px solid var(--fg);background:transparent;display:grid;place-items:center;cursor:pointer;padding:0}
+.rec span{width:58px;height:58px;border-radius:50%;background:var(--rec);transition:all .18s}
+.rec.on span{width:30px;height:30px;border-radius:7px}
+.rec:disabled{opacity:.35;cursor:default}
+.recLabel{text-align:center;font-weight:700;margin-top:-6px}
+.hint{color:var(--muted);font-size:14px;text-align:center;min-height:1.4em;text-wrap:pretty}
+.tl{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:stretch}
+.tlLabels{display:grid;grid-template-rows:1fr 1fr;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
+.tlLabels span{display:flex;align-items:center}
+.tlTracks{position:relative;display:grid;grid-template-rows:26px 26px;gap:6px;min-width:0}
+.track{position:relative;background:var(--panel);border-radius:6px;overflow:hidden}
+.blk{position:absolute;top:0;bottom:0;border-radius:5px;font-size:11px;font-weight:800;display:flex;align-items:center;padding-left:5px;overflow:hidden;border-right:2px solid var(--bg)}
+.blk.A{background:var(--sideA);color:#1a1206}
+.blk.B{background:var(--sideB);color:#05201c}
+.blk.live{background:var(--rec);color:#fff}
+.playhead{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--fg);border-radius:2px;margin-left:-1px}
+.tlMeta{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row .btn{flex:1 1 0}
+details{color:var(--muted);font-size:14px}
+details summary{cursor:pointer;font-weight:650;color:var(--fg)}
+details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
+.sheetBg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+.sheet{background:var(--panel2);width:min(520px,100%);border-radius:18px 18px 0 0;padding:18px max(16px,env(safe-area-inset-left,0px)) max(18px,env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;max-height:92dvh;overflow:auto}
+.sheet h2{margin:0;font-size:18px}
+.field{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.field label{font-weight:600}
+.field select{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}
+.field input[type=checkbox]{width:22px;height:22px;accent-color:var(--sideB)}
+.small{font-size:13px;color:var(--muted)}
+#resVideo{width:100%;max-height:55dvh;background:#000;border-radius:10px}
+.progress{height:8px;background:var(--panel);border-radius:99px;overflow:hidden}
+.progress div{height:100%;width:0;background:linear-gradient(90deg,var(--sideA),var(--sideB))}
+#toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:10px;font-weight:600;z-index:30;max-width:calc(100% - 32px)}
+#mediaBox{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
+#mediaBox video{width:2px;height:2px}
+@media (min-width:820px){
+  main{grid-template-columns:auto minmax(320px,400px);justify-content:center}
+  .stage{height:calc(100dvh - 90px)}
+}
+@media (prefers-reduced-motion:reduce){.rec span{transition:none}.tag.rec i{animation:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="a">Klon</span><span class="b">Cam</span></div>
+    <button class="btn" id="btnSettings" type="button">Einstellungen</button>
+  </header>
+  <main>
+    <div class="stage" id="stageBox">
+      <canvas id="stage" width="1080" height="1920"></canvas>
+      <div class="overlay">
+        <div class="tag A" id="tagA"><i></i><span>Links</span></div>
+        <div class="tag B" id="tagB"><i></i><span>Rechts</span></div>
+        <div id="countdown" hidden>3</div>
+        <div id="recTimer" hidden>0:00,0</div>
+        <div id="busy" hidden>Aufnahme wird vorbereitet …</div>
+        <div id="startCard">
+          <h1>Mit dir selbst reden, ohne Zählen und Raten</h1>
+          <ol>
+            <li>Links sagst du deinen ersten Satz, dann Stopp.</li>
+            <li>Rechts läuft links ab. Du hörst zu, reagierst und antwortest, sobald links fertig ist.</li>
+            <li>Wieder links: Rechts läuft ab, du antwortest. So weiter, bis das Gespräch fertig ist.</li>
+          </ol>
+          <div class="note">Mit Kopfhörern klappt es am besten, sonst nimmt das Mikro den Lautsprecher mit auf.</div>
+          <div class="note" id="savedNote" hidden></div>
+          <button class="btn primary" id="btnStart" type="button">Kamera starten</button>
+          <div id="startErr" hidden></div>
+        </div>
+      </div>
+    </div>
+
+    <section class="panel">
+      <div class="seg" id="sidePick">
+        <button type="button" data-side="A"><span id="pickNameA">Links</span><small id="pickTimeA">ab 0:00,0</small></button>
+        <button type="button" data-side="B"><span id="pickNameB">Rechts</span><small id="pickTimeB">ab 0:00,0</small></button>
+      </div>
+      <div class="ctrl">
+        <button class="btn" id="btnUndo" type="button">Rückgängig</button>
+        <button class="rec" id="btnRec" type="button" aria-label="Aufnehmen"><span></span></button>
+        <button class="btn" id="btnPreview" type="button">Vorschau</button>
+      </div>
+      <div class="recLabel" id="recLabel">Links aufnehmen</div>
+      <div class="hint" id="hint"></div>
+      <div class="tl">
+        <div class="tlLabels"><span id="labA">Links</span><span id="labB">Rechts</span></div>
+        <div class="tlTracks">
+          <div class="track" id="trackA"></div>
+          <div class="track" id="trackB"></div>
+          <div class="playhead" id="playhead" hidden></div>
+        </div>
+      </div>
+      <div class="tlMeta"><span id="tlCount">0 Aufnahmen</span><span id="tlTotal">Länge 0:00,0</span></div>
+      <button class="btn primary" id="btnExport" type="button">Video erstellen</button>
+      <div class="row">
+        <button class="btn" id="btnFlip" type="button">Kamera drehen</button>
+        <button class="btn danger" id="btnReset" type="button">Neu anfangen</button>
+      </div>
+      <details>
+        <summary>Tipps</summary>
+        <ul>
+          <li>Der Vorlauf spielt die letzten Sekunden noch mal ab, bevor deine Aufnahme startet. So erwischst du den Einsatz leichter.</li>
+          <li>Die erste Aufnahme einer Seite beginnt bei 0. Jede weitere setzt genau dort an, wo diese Seite zuletzt aufgehört hat.</li>
+          <li>Ganz am Ende kannst du die andere Seite noch einmal kurz nur reagieren lassen, damit sie nicht einfriert.</li>
+          <li>Aufnahmen bleiben in diesem Browser gespeichert, auch wenn die Seite neu lädt.</li>
+        </ul>
+      </details>
+    </section>
+  </main>
+</div>
+
+<div class="sheetBg" id="settingsSheet" hidden>
+  <div class="sheet" role="dialog" aria-label="Einstellungen">
+    <h2>Einstellungen</h2>
+    <div class="field"><label for="optLayout">Aufteilung</label>
+      <select id="optLayout"><option value="lr">Links | Rechts</option><option value="tb">Oben / Unten</option></select></div>
+    <div class="field"><label for="optPreroll">Vorlauf vor deinem Einsatz</label>
+      <select id="optPreroll"><option value="0">aus</option><option value="1">1 s</option><option value="2">2 s</option><option value="3">3 s</option><option value="5">5 s</option></select></div>
+    <div class="field"><label for="optMirror">Selfie spiegeln</label><input type="checkbox" id="optMirror"></div>
+    <div class="field"><label for="optDivider">Trennlinie</label><input type="checkbox" id="optDivider"></div>
+    <div class="small">Das fertige Video ist 1080 × 1920 (9:16) für TikTok.</div>
+    <button class="btn primary" id="btnCloseSettings" type="button">Fertig</button>
+  </div>
+</div>
+
+<div class="sheetBg" id="exportSheet" hidden>
+  <div class="sheet" role="dialog" aria-label="Video">
+    <h2 id="expTitle">Video wird erstellt …</h2>
+    <div id="expRun">
+      <div class="progress"><div id="expBar"></div></div>
+      <p class="small">Läuft in Echtzeit mit. Lass den Bildschirm an und die App im Vordergrund.</p>
+      <button class="btn" id="btnExpCancel" type="button">Abbrechen</button>
+    </div>
+    <div id="expDone" hidden>
+      <video id="resVideo" controls playsinline></video>
+      <p class="small" id="resInfo"></p>
+      <div class="row">
+        <button class="btn primary" id="btnShare" type="button">Teilen / in Fotos sichern</button>
+        <a class="btn" id="btnDownload" href="#" download="klon.mp4">Herunterladen</a>
+      </div>
+      <button class="btn" id="btnExpClose" type="button">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" hidden></div>
+<video id="cam" playsinline muted autoplay hidden></video>
+<div id="mediaBox"></div>
+
+<script>
+(() => {
+'use strict';
+const W = 1080, H = 1920, SIDES = ['A', 'B'];
+const $ = s => document.querySelector(s);
+const stage = $('#stage'), g = stage.getContext('2d');
+const camVideo = $('#cam'), mediaBox = $('#mediaBox');
+const other = s => s === 'A' ? 'B' : 'A';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+const CAM_TYPES = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4',
+  'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+const EXPORT_TYPES = CAM_TYPES;
+
+// ---------- settings ----------
+const settings = { layout: 'lr', preroll: 2, mirror: true, divider: true, facing: 'user' };
+try { Object.assign(settings, JSON.parse(localStorage.getItem('kloncam.settings') || '{}')); } catch (e) {}
+function saveSettings() { try { localStorage.setItem('kloncam.settings', JSON.stringify(settings)); } catch (e) {} }
+
+// ---------- state ----------
+// seg: {id, side, start (timeline s), dur, offset (media time at start), mime, mirror, blob, url, video, buffer}
+const state = { segs: [], next: 'A', mode: 'off' }; // off | idle | countdown | rec | busy | preview | export
+let ac = null, camStream = null, camOn = false, play = null, recCtl = null, exportCtl = null;
+let idleT = 0, cdCancel = false, wakeLock = null, restored = false;
+
+const sideName = s => settings.layout === 'lr' ? (s === 'A' ? 'Links' : 'Rechts') : (s === 'A' ? 'Oben' : 'Unten');
+const coverage = side => state.segs.reduce((m, s) => s.side === side ? Math.max(m, s.start + s.dur) : m, 0);
+const total = () => Math.max(coverage('A'), coverage('B'));
+const liveMirror = () => settings.mirror && settings.facing === 'user';
+const fmt = t => { t = Math.max(0, t); return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')},${Math.floor((t * 10) % 10)}`; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function pickMime(list) {
+  if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+  return list.find(t => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+// ---------- drawing ----------
+function rectFor(side) {
+  if (settings.layout === 'lr') return side === 'A' ? { x: 0, y: 0, w: W / 2, h: H } : { x: W / 2, y: 0, w: W / 2, h: H };
+  return side === 'A' ? { x: 0, y: 0, w: W, h: H / 2 } : { x: 0, y: H / 2, w: W, h: H / 2 };
+}
+function drawCover(src, sw, sh, r, mirror) {
+  if (!sw || !sh) return false;
+  const s = Math.max(r.w / sw, r.h / sh), cw = r.w / s, ch = r.h / s;
+  g.save();
+  g.beginPath(); g.rect(r.x, r.y, r.w, r.h); g.clip();
+  if (mirror) { g.translate(r.x * 2 + r.w, 0); g.scale(-1, 1); }
+  g.drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, r.x, r.y, r.w, r.h);
+  g.restore();
+  return true;
+}
+function placeholder(r, text, side) {
+  g.fillStyle = '#15171e'; g.fillRect(r.x, r.y, r.w, r.h);
+  if (!text) return;
+  g.fillStyle = side === 'A' ? '#ff9f43' : '#4dd6c4';
+  g.font = '600 44px system-ui, -apple-system, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, r.x + r.w / 2, r.y + r.h / 2);
+}
+function segToShow(side, t) {
+  let past = null;
+  for (const s of state.segs) {
+    if (s.side !== side) continue;
+    if (t >= s.start && t < s.start + s.dur) return s;
+    if (s.start + s.dur <= t && (!past || s.start > past.start)) past = s;
+  }
+  return past;
+}
+function renderAt(t, live, liveFrom, clean) {
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+  for (const side of SIDES) {
+    const r = rectFor(side);
+    if (side === live && t >= liveFrom) {
+      if (!(camVideo.readyState >= 2 && drawCover(camVideo, camVideo.videoWidth, camVideo.videoHeight, r, liveMirror())))
+        placeholder(r, 'Kamera …', side);
+      continue;
+    }
+    const s = segToShow(side, t);
+    if (!(s && s.video && s.video.readyState >= 2 && drawCover(s.video, s.video.videoWidth, s.video.videoHeight, r, s.mirror)))
+      placeholder(r, clean ? '' : `${sideName(side)}: noch leer`, side);
+  }
+  if (settings.divider) {
+    g.fillStyle = '#000';
+    if (settings.layout === 'lr') g.fillRect(W / 2 - 3, 0, 6, H); else g.fillRect(0, H / 2 - 3, W, 6);
+  }
+}
+
+// ---------- media helpers ----------
+function waitEvent(el, ev, ms) {
+  return new Promise(res => {
+    let done = false;
+    const f = () => { if (done) return; done = true; el.removeEventListener(ev, f); res(true); };
+    el.addEventListener(ev, f);
+    setTimeout(() => { if (!done) { done = true; el.removeEventListener(ev, f); res(false); } }, ms);
+  });
+}
+async function seekTo(v, t) {
+  t = Math.max(0, t);
+  if (v.readyState >= 2 && Math.abs(v.currentTime - t) < 0.02) return;
+  const p = waitEvent(v, 'seeked', 3000);
+  v.currentTime = t;
+  await p;
+}
+function decode(buf) { return new Promise((res, rej) => ac.decodeAudioData(buf, res, rej)); }
+async function prepSeg(seg) {
+  seg.url = URL.createObjectURL(seg.blob);
+  const v = document.createElement('video');
+  v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
+  v.src = seg.url;
+  mediaBox.appendChild(v);
+  seg.video = v;
+  if (v.readyState < 2) await waitEvent(v, 'loadeddata', 8000);
+  if (!isFinite(v.duration)) { // WebM from MediaRecorder has no duration until scanned
+    const p = waitEvent(v, 'durationchange', 4000); v.currentTime = 1e7; await p;
+  }
+  await seekTo(v, seg.offset);
+  try { seg.buffer = await decode(await seg.blob.arrayBuffer()); } catch (e) { seg.buffer = null; }
+  const len = isFinite(v.duration) ? v.duration : (seg.buffer ? seg.buffer.duration : Infinity);
+  if (len < seg.offset + seg.dur) seg.dur = Math.max(0.1, len - seg.offset);
+}
+function disposeSeg(seg) {
+  if (seg.video) { seg.video.removeAttribute('src'); seg.video.load(); seg.video.remove(); }
+  if (seg.url) URL.revokeObjectURL(seg.url);
+}
+function positionAt(t) {
+  return Promise.all(state.segs.map(s => {
+    s.video.pause();
+    const local = t - s.start;
+    return seekTo(s.video, local >= s.dur ? s.offset + Math.max(0, s.dur - 0.05) : s.offset + Math.max(0, local));
+  }));
+}
+
+// ---------- playback engine (audio clock is the master) ----------
+async function startPlayback(o) {
+  await ac.resume();
+  await positionAt(o.from);
+  const out = ac.createGain();
+  out.connect(ac.destination);
+  if (o.dest) out.connect(o.dest);
+  const C0 = ac.currentTime + 0.15, srcs = [];
+  for (const s of state.segs) {
+    s.video.muted = !!s.buffer;
+    if (!s.buffer) continue;
+    const skip = Math.max(0, o.from - s.start), len = s.dur - skip, off = s.offset + skip;
+    if (len <= 0.02 || off >= s.buffer.duration) continue;
+    const src = ac.createBufferSource();
+    src.buffer = s.buffer; src.connect(out);
+    src.start(C0 + Math.max(0, s.start - o.from), off, Math.min(len, s.buffer.duration - off));
+    srcs.push(src);
+  }
+  play = { from: o.from, C0, live: o.live || null, liveFrom: o.liveFrom ?? Infinity, out, srcs,
+    time() { return this.from + Math.max(0, ac.currentTime - this.C0); } };
+  return play;
+}
+function stopPlayback() {
+  if (!play) return;
+  for (const s of play.srcs) { try { s.stop(); } catch (e) {} }
+  try { play.out.disconnect(); } catch (e) {}
+  state.segs.forEach(s => s.video.pause());
+  play = null;
+}
+function syncVideos(t, running) {
+  for (const s of state.segs) {
+    const v = s.video, local = t - s.start;
+    if (running && local >= 0 && local < s.dur) {
+      const expect = s.offset + local;
+      if (v.paused) {
+        if (Math.abs(v.currentTime - expect) > 0.08) v.currentTime = expect;
+        v.play().catch(() => {});
+      } else if (Math.abs(v.currentTime - expect) > 0.3) v.currentTime = expect;
+    } else if (!v.paused) v.pause();
+  }
+}
+
+// ---------- main loop ----------
+function loop() {
+  requestAnimationFrame(loop);
+  if (state.mode === 'off') return;
+  let t, live = null, liveFrom = Infinity, clean = false;
+  if (play) {
+    t = play.time();
+    syncVideos(t, ac.currentTime >= play.C0);
+    live = play.live; liveFrom = play.liveFrom; clean = state.mode === 'export';
+  } else if (state.mode === 'export') { t = 0; clean = true; }
+  else { t = idleT; if (camOn) { live = state.next; liveFrom = -Infinity; } }
+  renderAt(t, live, liveFrom, clean);
+  onFrame(t);
+}
+
+function onFrame(t) {
+  const active = state.mode === 'rec' || state.mode === 'preview' || state.mode === 'export';
+  layoutTimeline(active ? t : null);
+  if (state.mode === 'rec' && recCtl) {
+    const pre = t < recCtl.tX;
+    $('#recTimer').textContent = pre ? `Vorlauf … ${fmt(recCtl.tX - t)}` : fmt(t - recCtl.tX);
+    const tag = recCtl.side === 'A' ? $('#tagA') : $('#tagB');
+    tag.classList.toggle('rec', !pre);
+  }
+  if (state.mode === 'preview' && t >= total() + 0.05) stopPreview();
+  if (state.mode === 'export' && exportCtl && play) {
+    $('#expBar').style.width = Math.min(100, t / exportCtl.total * 100) + '%';
+    if (t >= exportCtl.total + 0.1) finishExport(false);
+  }
+}
+
+// ---------- timeline ----------
+let liveBlk = null;
+function buildTimeline() {
+  SIDES.forEach(s => { $('#track' + s).textContent = ''; });
+  state.segs.forEach((s, i) => {
+    const b = document.createElement('div');
+    b.className = 'blk ' + s.side; b.textContent = i + 1;
+    s.blk = b; $('#track' + s.side).appendChild(b);
+  });
+  liveBlk = null;
+  if (state.mode === 'rec' && recCtl) {
+    liveBlk = document.createElement('div');
+    liveBlk.className = 'blk live'; liveBlk.textContent = state.segs.length + 1;
+    $('#track' + recCtl.side).appendChild(liveBlk);
+  }
+  layoutTimeline(null);
+}
+function layoutTimeline(t) {
+  const scale = Math.max(5, total(), t || 0) * 1.04;
+  for (const s of state.segs) {
+    if (!s.blk) continue;
+    s.blk.style.left = (s.start / scale * 100) + '%';
+    s.blk.style.width = Math.max(0.8, s.dur / scale * 100) + '%';
+  }
+  if (liveBlk && recCtl && t != null) {
+    liveBlk.style.left = (recCtl.tX / scale * 100) + '%';
+    liveBlk.style.width = Math.max(0, (t - recCtl.tX) / scale * 100) + '%';
+  }
+  const ph = $('#playhead');
+  ph.hidden = t == null;
+  if (t != null) ph.style.left = (t / scale * 100) + '%';
+  $('#tlTotal').textContent = 'Länge ' + fmt(total());
+  $('#tlCount').textContent = state.segs.length === 1 ? '1 Aufnahme' : `${state.segs.length} Aufnahmen`;
+}
+
+// ---------- UI state ----------
+function updateUI() {
+  const m = state.mode, idle = m === 'idle', n = state.next, o = other(n);
+  const has = state.segs.length > 0;
+  $('#stageBox').classList.toggle('tb', settings.layout === 'tb');
+  for (const s of SIDES) {
+    $('#tag' + s).querySelector('span').textContent =
+      (camOn && (idle || m === 'countdown') && s === n) ? `${sideName(s)} · du` : sideName(s);
+    $('#tag' + s).classList.remove('rec');
+    $('#lab' + s).textContent = sideName(s);
+    $('#pickName' + s).textContent = sideName(s);
+    $('#pickTime' + s).textContent = 'ab ' + fmt(coverage(s));
+  }
+  document.querySelectorAll('#sidePick button').forEach(b => {
+    b.classList.toggle('on', b.dataset.side === n);
+    b.disabled = !idle;
+  });
+  const rb = $('#btnRec');
+  rb.classList.toggle('on', m === 'rec');
+  rb.disabled = !camOn || !(idle || m === 'rec' || m === 'countdown');
+  rb.setAttribute('aria-label', m === 'rec' ? 'Stopp' : 'Aufnehmen');
+  $('#recLabel').textContent = m === 'rec' ? 'Stopp' : m === 'countdown' ? 'Abbrechen' : `${sideName(n)} aufnehmen`;
+  $('#btnUndo').disabled = !idle || !has;
+  $('#btnPreview').disabled = !has || !(idle || m === 'preview');
+  $('#btnPreview').textContent = m === 'preview' ? 'Stopp' : 'Vorschau';
+  $('#btnExport').disabled = !idle || !has;
+  $('#btnFlip').disabled = !idle;
+  $('#btnReset').disabled = !idle || !has;
+  $('#recTimer').hidden = m !== 'rec';
+  $('#busy').hidden = m !== 'busy';
+  let hint = '';
+  if (camOn && idle) {
+    const cn = coverage(n), co = coverage(o);
+    const pre = Math.min(settings.preroll, cn);
+    if (!has) hint = `Fang ${sideName(n).toLowerCase()} an: Sag deinen ersten Satz und tippe dann auf Stopp.`;
+    else if (co > cn + 0.05) hint = `Ab ${fmt(cn)} läuft ${sideName(o).toLowerCase()} ab. Hör zu und reagiere. Wenn ${sideName(o).toLowerCase()} fertig ist, antworte und tippe auf Stopp.`;
+    else hint = `${sideName(o)} ist hier schon zu Ende. Du sprichst ab ${fmt(cn)} einfach weiter.`;
+    if (has && pre > 0) hint += ` (${pre} s Vorlauf davor)`;
+  } else if (m === 'rec' && recCtl) {
+    hint = `Aufnahme ${sideName(recCtl.side).toLowerCase()} läuft. Tippe auf Stopp, wenn du fertig bist.`;
+  }
+  $('#hint').textContent = hint;
+  buildTimeline();
+}
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast'); el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3200);
+}
+
+// ---------- camera ----------
+async function openCamera() {
+  if (camStream) camStream.getTracks().forEach(t => t.stop());
+  camStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: settings.facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+  });
+  camVideo.srcObject = camStream;
+  await camVideo.play().catch(() => {});
+}
+async function enable() {
+  const err = $('#startErr'); err.hidden = true;
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+      throw new Error(window.isSecureContext ? 'Dieser Browser kann nicht auf die Kamera zugreifen.' : 'Die Kamera geht nur über https:// oder localhost.');
+    if (!window.MediaRecorder) throw new Error('Dieser Browser kann keine Videos aufnehmen. Nimm Safari oder Chrome in aktueller Version.');
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    await ac.resume();
+    await openCamera();
+    camOn = true;
+    $('#startCard').hidden = true;
+    if (!restored) {
+      restored = true;
+      state.mode = 'busy'; updateUI();
+      await restore();
+    }
+    state.mode = 'idle';
+    await goIdle();
+    requestWake();
+  } catch (e) {
+    err.textContent = e.name === 'NotAllowedError'
+      ? 'Kamera oder Mikrofon wurde nicht erlaubt. Erlaube beides in den Browser-Einstellungen für diese Seite und lade neu.'
+      : (e.message || String(e));
+    err.hidden = false;
+  }
+}
+async function goIdle() {
+  state.mode = 'idle';
+  idleT = coverage(state.next);
+  updateUI();
+  await positionAt(idleT);
+}
+async function requestWake() {
+  try {
+    if ('wakeLock' in navigator && !wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && camOn) requestWake(); });
+
+// ---------- recording a take ----------
+async function startRecording() {
+  const side = state.next, tX = coverage(side), P = Math.min(settings.preroll, tX), T0 = tX - P;
+  state.mode = 'countdown'; idleT = T0; updateUI();
+  const seeking = positionAt(T0);
+  cdCancel = false;
+  const cd = $('#countdown'); cd.hidden = false;
+  for (const n of [3, 2, 1]) { cd.textContent = n; await sleep(700); if (cdCancel) break; }
+  cd.hidden = true;
+  await seeking;
+  if (cdCancel) { await goIdle(); return; }
+  const mime = pickMime(CAM_TYPES);
+  let rec;
+  try { rec = new MediaRecorder(camStream, mime ? { mimeType: mime, videoBitsPerSecond: 6e6 } : undefined); }
+  catch (e) { rec = new MediaRecorder(camStream); }
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  // the start event is unreliable (Chrome may never fire it), so media time 0 = the start() call
+  const Rs = ac.currentTime;
+  rec.start(500);
+  await startPlayback({ from: T0, live: side, liveFrom: tX });
+  recCtl = { rec, chunks, side, tX, T0, Rs, C0: play.C0, mime: rec.mimeType || mime, mirror: liveMirror() };
+  state.mode = 'rec';
+  updateUI();
+  requestWake();
+}
+async function stopRecording() {
+  const r = recCtl; if (!r) return;
+  const tStop = r.T0 + (ac.currentTime - r.C0);
+  stopPlayback();
+  recCtl = null;
+  state.mode = 'busy'; updateUI();
+  const stopped = new Promise(res => { r.rec.onstop = res; });
+  r.rec.stop();
+  await Promise.race([stopped, sleep(4000)]);
+  const dur = tStop - r.tX;
+  if (dur < 0.3) { toast('Zu kurz, nichts gespeichert.'); await goIdle(); return; }
+  const seg = {
+    id: uid(), side: r.side, start: r.tX, dur,
+    offset: Math.max(0, r.C0 + (r.tX - r.T0) - r.Rs),
+    mime: r.mime, mirror: r.mirror, blob: new Blob(r.chunks, { type: r.mime || 'video/mp4' })
+  };
+  try { await prepSeg(seg); }
+  catch (e) { disposeSeg(seg); toast('Die Aufnahme konnte nicht gelesen werden.'); await goIdle(); return; }
+  state.segs.push(seg);
+  state.next = other(r.side);
+  await saveAll();
+  await goIdle();
+}
+
+// ---------- preview ----------
+async function startPreview() {
+  state.mode = 'preview'; updateUI();
+  await startPlayback({ from: 0 });
+}
+async function stopPreview() {
+  if (state.mode !== 'preview') return;
+  stopPlayback();
+  await goIdle();
+}
+
+// ---------- export ----------
+let resultUrl = null, resultFile = null;
+async function startExport() {
+  const tot = total();
+  if (!stage.captureStream) { toast('Dieser Browser kann kein Video erstellen.'); return; }
+  state.mode = 'export'; updateUI();
+  $('#expTitle').textContent = 'Video wird erstellt …';
+  $('#expRun').hidden = false; $('#expDone').hidden = true; $('#expBar').style.width = '0%';
+  $('#exportSheet').hidden = false;
+  await positionAt(0);
+  const dest = ac.createMediaStreamDestination();
+  const vs = stage.captureStream(30);
+  const stream = new MediaStream([...vs.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+  const mime = pickMime(EXPORT_TYPES);
+  const opts = { videoBitsPerSecond: 10e6, audioBitsPerSecond: 192000 };
+  if (mime) opts.mimeType = mime;
+  const rec = new MediaRecorder(stream, opts);
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  rec.start(500);
+  exportCtl = { rec, chunks, vs, total: tot, mime: rec.mimeType || mime, done: false };
+  await startPlayback({ from: 0, dest });
+}
+async function finishExport(cancel) {
+  const e = exportCtl; if (!e || e.done) return;
+  e.done = true;
+  stopPlayback();
+  const stopped = new Promise(r => { e.rec.onstop = r; });
+  e.rec.stop();
+  await Promise.race([stopped, sleep(4000)]);
+  e.vs.getTracks().forEach(t => t.stop());
+  exportCtl = null;
+  await goIdle();
+  if (cancel) { $('#exportSheet').hidden = true; return; }
+  const type = (e.mime || 'video/webm').split(';')[0];
+  const blob = new Blob(e.chunks, { type });
+  const ext = type.includes('mp4') ? 'mp4' : 'webm';
+  const d = new Date(), p = x => String(x).padStart(2, '0');
+  const name = `klon-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
+  if (resultUrl) URL.revokeObjectURL(resultUrl);
+  resultUrl = URL.createObjectURL(blob);
+  resultFile = new File([blob], name, { type });
+  $('#resVideo').src = resultUrl;
+  const dl = $('#btnDownload'); dl.href = resultUrl; dl.download = name;
+  let canShare = false;
+  try { canShare = !!(navigator.canShare && navigator.canShare({ files: [resultFile] })); } catch (err) {}
+  $('#btnShare').hidden = !canShare;
+  $('#resInfo').textContent = `${fmt(e.total)} · ${(blob.size / 1048576).toFixed(1)} MB · ${ext.toUpperCase()}` +
+    (ext === 'webm' ? ' · Dieser Browser liefert WebM. TikTok im Browser nimmt das an; für MP4 nimm Safari.' : '');
+  $('#expTitle').textContent = 'Fertig';
+  $('#expRun').hidden = true; $('#expDone').hidden = false;
+}
+
+// ---------- storage (IndexedDB) ----------
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('kloncam', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('segs', { keyPath: 'id' });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+const txDone = tx => new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
+async function saveAll() {
+  try {
+    const db = await idb(), tx = db.transaction('segs', 'readwrite'), st = tx.objectStore('segs');
+    st.clear();
+    state.segs.forEach((s, i) => st.put({ id: s.id, idx: i, side: s.side, start: s.start, dur: s.dur, offset: s.offset, mime: s.mime, mirror: s.mirror, blob: s.blob }));
+    await txDone(tx); db.close();
+  } catch (e) { toast('Speichern im Browser hat nicht geklappt. Aufnahmen bleiben nur bis zum Neuladen.'); }
+}
+async function loadRows() {
+  try {
+    const db = await idb(), tx = db.transaction('segs', 'readonly');
+    const rows = await new Promise((res, rej) => { const q = tx.objectStore('segs').getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+    db.close();
+    return rows.sort((a, b) => a.idx - b.idx);
+  } catch (e) { return []; }
+}
+async function restore() {
+  const rows = await loadRows();
+  for (const row of rows) {
+    const seg = { id: row.id, side: row.side, start: row.start, dur: row.dur, offset: row.offset, mime: row.mime, mirror: row.mirror, blob: row.blob };
+    try { await prepSeg(seg); state.segs.push(seg); } catch (e) { disposeSeg(seg); }
+  }
+  if (state.segs.length) {
+    state.next = other(state.segs[state.segs.length - 1].side);
+    toast(`${state.segs.length} gespeicherte Aufnahmen geladen.`);
+  }
+}
+
+// ---------- events ----------
+$('#btnStart').addEventListener('click', enable);
+$('#btnRec').addEventListener('click', () => {
+  if (state.mode === 'idle') startRecording();
+  else if (state.mode === 'countdown') cdCancel = true;
+  else if (state.mode === 'rec') stopRecording();
+});
+document.querySelectorAll('#sidePick button').forEach(b => b.addEventListener('click', () => {
+  if (state.mode !== 'idle') return;
+  state.next = b.dataset.side;
+  goIdle();
+}));
+$('#btnUndo').addEventListener('click', async () => {
+  if (state.mode !== 'idle' || !state.segs.length) return;
+  const s = state.segs.pop();
+  disposeSeg(s);
+  state.next = s.side;
+  await saveAll();
+  await goIdle();
+  toast(`Aufnahme ${state.segs.length + 1} gelöscht.`);
+});
+$('#btnPreview').addEventListener('click', () => {
+  if (state.mode === 'idle') startPreview(); else if (state.mode === 'preview') stopPreview();
+});
+$('#btnExport').addEventListener('click', () => { if (state.mode === 'idle' && state.segs.length) startExport(); });
+$('#btnExpCancel').addEventListener('click', () => finishExport(true));
+$('#btnExpClose').addEventListener('click', () => { $('#exportSheet').hidden = true; $('#resVideo').pause(); });
+$('#btnShare').addEventListener('click', async () => {
+  try { await navigator.share({ files: [resultFile], title: 'KlonCam' }); } catch (e) {}
+});
+$('#btnFlip').addEventListener('click', async () => {
+  if (state.mode !== 'idle') return;
+  settings.facing = settings.facing === 'user' ? 'environment' : 'user'; saveSettings();
+  try { await openCamera(); } catch (e) { toast('Die andere Kamera ließ sich nicht öffnen.'); }
+});
+$('#btnReset').addEventListener('click', async () => {
+  if (state.mode !== 'idle' || !state.segs.length) return;
+  if (!confirm('Alle Aufnahmen löschen und neu anfangen?')) return;
+  state.segs.forEach(disposeSeg);
+  state.segs = []; state.next = 'A';
+  await saveAll();
+  await goIdle();
+});
+$('#btnSettings').addEventListener('click', () => {
+  $('#optLayout').value = settings.layout;
+  $('#optPreroll').value = String(settings.preroll);
+  $('#optMirror').checked = settings.mirror;
+  $('#optDivider').checked = settings.divider;
+  $('#settingsSheet').hidden = false;
+});
+$('#optLayout').addEventListener('change', e => { settings.layout = e.target.value; saveSettings(); updateUI(); });
+$('#optPreroll').addEventListener('change', e => { settings.preroll = +e.target.value; saveSettings(); updateUI(); });
+$('#optMirror').addEventListener('change', e => { settings.mirror = e.target.checked; saveSettings(); });
+$('#optDivider').addEventListener('change', e => { settings.divider = e.target.checked; saveSettings(); });
+$('#btnCloseSettings').addEventListener('click', () => { $('#settingsSheet').hidden = true; });
+$('#settingsSheet').addEventListener('click', e => { if (e.target.id === 'settingsSheet') e.target.hidden = true; });
+
+// first paint: show the empty split and how many takes are waiting
+renderAt(0, null, Infinity, false);
+updateUI();
+loadRows().then(rows => {
+  if (rows.length) { const n = $('#savedNote'); n.textContent = `${rows.length} gespeicherte Aufnahmen warten und werden beim Start geladen.`; n.hidden = false; }
+});
+requestAnimationFrame(loop);
+window.__kloncam = { state, settings }; // debug handle
+})();
+</script>
+</body>
+</html>
