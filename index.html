@@ -38,8 +38,10 @@ main{display:grid;gap:16px;align-items:start}
 .tag{position:absolute;top:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:999px;background:rgba(0,0,0,.55);display:flex;gap:5px;align-items:center}
 .tag i{width:7px;height:7px;border-radius:50%;display:inline-block}
 .tag.A{left:8px} .tag.A i{background:var(--sideA)}
-.tag.B{left:calc(50% + 8px)} .tag.B i{background:var(--sideB)}
-.stage.tb .tag.B{left:8px;top:calc(50% + 8px)}
+.tag.B{left:calc(var(--split,50%) + 8px)} .tag.B i{background:var(--sideB)}
+.stage.tb .tag.B{left:8px;top:calc(var(--split,50%) + 8px)}
+#seam{position:absolute;top:0;bottom:0;left:var(--split,50%);border-left:2px dashed rgba(255,255,255,.55)}
+.stage.tb #seam{top:var(--split,50%);bottom:auto;left:0;right:0;border-left:0;border-top:2px dashed rgba(255,255,255,.55)}
 .tag.rec{background:var(--rec);color:#fff}
 .tag.rec i{background:#fff;animation:blink 1s steps(2) infinite}
 @keyframes blink{50%{opacity:0}}
@@ -120,6 +122,7 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
       <div class="overlay">
         <div class="tag A" id="tagA"><i></i><span>Links</span></div>
         <div class="tag B" id="tagB"><i></i><span>Rechts</span></div>
+        <div id="seam" hidden></div>
         <div id="countdown" hidden>3</div>
         <div id="recTimer" hidden>0:00,0</div>
         <div id="busy" hidden>Aufnahme wird vorbereitet …</div>
@@ -161,12 +164,17 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
       <div class="tlMeta"><span id="tlCount">0 Aufnahmen</span><span id="tlTotal">Länge 0:00,0</span></div>
       <button class="btn primary" id="btnExport" type="button">Video erstellen</button>
       <div class="row">
+        <button class="btn" id="btnOnlyA" type="button">Nur links einzeln</button>
+        <button class="btn" id="btnOnlyB" type="button">Nur rechts einzeln</button>
+      </div>
+      <div class="row">
         <button class="btn" id="btnFlip" type="button">Kamera drehen</button>
         <button class="btn danger" id="btnReset" type="button">Neu anfangen</button>
       </div>
       <details>
         <summary>Tipps</summary>
         <ul>
+          <li>Für den Ein-Raum-Effekt: Handy auf ein Stativ oder fest anlehnen, gleiches Licht, und zwischen den Aufnahmen nicht bewegen. Bleib auf deiner Seite der gestrichelten Linie. Die Linie ist im fertigen Video nicht zu sehen.</li>
           <li>Der Vorlauf spielt die letzten Sekunden noch mal ab, bevor deine Aufnahme startet. So erwischst du den Einsatz leichter.</li>
           <li>Die erste Aufnahme einer Seite beginnt bei 0. Jede weitere setzt genau dort an, wo diese Seite zuletzt aufgehört hat.</li>
           <li>Ganz am Ende kannst du die andere Seite noch einmal kurz nur reagieren lassen, damit sie nicht einfriert.</li>
@@ -182,8 +190,17 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
     <h2>Einstellungen</h2>
     <div class="field"><label for="optLayout">Aufteilung</label>
       <select id="optLayout"><option value="lr">Links | Rechts</option><option value="tb">Oben / Unten</option></select></div>
+    <div class="field"><label for="optLook">Bild</label>
+      <select id="optLook"><option value="room">Ein Raum (Handy steht fest)</option><option value="crop">Zwei Ausschnitte</option></select></div>
+    <div class="field"><label for="optSplit">Grenze</label>
+      <input type="range" id="optSplit" min="30" max="70" step="1"></div>
+    <div class="field"><label for="optFeather">Übergang</label>
+      <select id="optFeather"><option value="0">hart</option><option value="40">leicht weich</option><option value="80">weich</option><option value="160">sehr weich</option></select></div>
+    <div class="small">Ein Raum: Stell das Handy fest hin und bewege es zwischen den Aufnahmen nicht. Jeder bleibt auf seiner Seite der gestrichelten Linie.</div>
     <div class="field"><label for="optPreroll">Vorlauf vor deinem Einsatz</label>
       <select id="optPreroll"><option value="0">aus</option><option value="1">1 s</option><option value="2">2 s</option><option value="3">3 s</option><option value="5">5 s</option></select></div>
+    <div class="field"><label for="optHeadphones">Ich nutze Kopfhörer</label><input type="checkbox" id="optHeadphones"></div>
+    <div class="small">An: natürlicher, klarer Ton ohne Filter. Aus: die App filtert den Lautsprecher-Ton aus dem Mikro heraus, dadurch klingt die Stimme etwas dumpfer.</div>
     <div class="field"><label for="optMirror">Selfie spiegeln</label><input type="checkbox" id="optMirror"></div>
     <div class="field"><label for="optDivider">Trennlinie</label><input type="checkbox" id="optDivider"></div>
     <div class="small">Das fertige Video ist 1080 × 1920 (9:16) für TikTok.</div>
@@ -230,8 +247,9 @@ const CAM_TYPES = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=a
 const EXPORT_TYPES = CAM_TYPES;
 
 // ---------- settings ----------
-const settings = { layout: 'lr', preroll: 2, mirror: true, divider: true, facing: 'user' };
+const settings = { v: 2, layout: 'lr', look: 'room', split: 0.5, feather: 80, preroll: 2, mirror: true, divider: false, facing: 'user', headphones: false };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('kloncam.settings') || '{}')); } catch (e) {}
+if (settings.v !== 2) Object.assign(settings, { v: 2, look: 'room', split: 0.5, feather: 80, divider: false });
 function saveSettings() { try { localStorage.setItem('kloncam.settings', JSON.stringify(settings)); } catch (e) {} }
 
 // ---------- state ----------
@@ -253,17 +271,21 @@ function pickMime(list) {
 
 // ---------- drawing ----------
 function rectFor(side) {
-  if (settings.layout === 'lr') return side === 'A' ? { x: 0, y: 0, w: W / 2, h: H } : { x: W / 2, y: 0, w: W / 2, h: H };
-  return side === 'A' ? { x: 0, y: 0, w: W, h: H / 2 } : { x: 0, y: H / 2, w: W, h: H / 2 };
+  if (settings.layout === 'lr') {
+    const sx = Math.round(W * settings.split);
+    return side === 'A' ? { x: 0, y: 0, w: sx, h: H } : { x: sx, y: 0, w: W - sx, h: H };
+  }
+  const sy = Math.round(H * settings.split);
+  return side === 'A' ? { x: 0, y: 0, w: W, h: sy } : { x: 0, y: sy, w: W, h: H - sy };
 }
-function drawCover(src, sw, sh, r, mirror) {
+function drawCover(src, sw, sh, r, mirror, c = g) {
   if (!sw || !sh) return false;
   const s = Math.max(r.w / sw, r.h / sh), cw = r.w / s, ch = r.h / s;
-  g.save();
-  g.beginPath(); g.rect(r.x, r.y, r.w, r.h); g.clip();
-  if (mirror) { g.translate(r.x * 2 + r.w, 0); g.scale(-1, 1); }
-  g.drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, r.x, r.y, r.w, r.h);
-  g.restore();
+  c.save();
+  c.beginPath(); c.rect(r.x, r.y, r.w, r.h); c.clip();
+  if (mirror) { c.translate(r.x * 2 + r.w, 0); c.scale(-1, 1); }
+  c.drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, r.x, r.y, r.w, r.h);
+  c.restore();
   return true;
 }
 function placeholder(r, text, side) {
@@ -283,22 +305,53 @@ function segToShow(side, t) {
   }
   return past;
 }
-function renderAt(t, live, liveFrom, clean) {
+function sourceFor(side, t, live, liveFrom) {
+  if (side === live && t >= liveFrom)
+    return camVideo.readyState >= 2 ? { el: camVideo, w: camVideo.videoWidth, h: camVideo.videoHeight, mirror: liveMirror() } : null;
+  const s = segToShow(side, t);
+  return s && s.video && s.video.readyState >= 2 ? { el: s.video, w: s.video.videoWidth, h: s.video.videoHeight, mirror: s.mirror } : null;
+}
+const FULL = { x: 0, y: 0, w: W, h: H };
+const off = document.createElement('canvas'); off.width = W; off.height = H;
+const og = off.getContext('2d');
+function renderAt(t, live, liveFrom, clean, only) {
   g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
-  for (const side of SIDES) {
-    const r = rectFor(side);
-    if (side === live && t >= liveFrom) {
-      if (!(camVideo.readyState >= 2 && drawCover(camVideo, camVideo.videoWidth, camVideo.videoHeight, r, liveMirror())))
-        placeholder(r, 'Kamera …', side);
-      continue;
+  if (only) { // single-side export: that side's full camera frame
+    const src = sourceFor(only, t, live, liveFrom);
+    if (src) drawCover(src.el, src.w, src.h, FULL, src.mirror);
+    return;
+  }
+  const a = sourceFor('A', t, live, liveFrom), b = sourceFor('B', t, live, liveFrom);
+  const empty = side => placeholder(rectFor(side), clean ? '' : `${sideName(side)}: noch leer`, side);
+  if (settings.look === 'crop') {
+    // two separate centred crops, one per half
+    for (const [side, src] of [['A', a], ['B', b]])
+      if (!(src && drawCover(src.el, src.w, src.h, rectFor(side), src.mirror))) empty(side);
+  } else {
+    // one room: both takes share the same full frame, A is laid over B up to the seam
+    if (!(b && drawCover(b.el, b.w, b.h, FULL, b.mirror))) empty('B');
+    const f = settings.feather, ra = rectFor('A');
+    if (!a) empty('A');
+    else if (f <= 0) {
+      g.save(); g.beginPath(); g.rect(ra.x, ra.y, ra.w, ra.h); g.clip();
+      drawCover(a.el, a.w, a.h, FULL, a.mirror);
+      g.restore();
+    } else {
+      og.globalCompositeOperation = 'source-over';
+      og.clearRect(0, 0, W, H);
+      drawCover(a.el, a.w, a.h, FULL, a.mirror, og);
+      const lr = settings.layout === 'lr', seam = lr ? ra.w : ra.h;
+      const grad = lr ? og.createLinearGradient(seam - f / 2, 0, seam + f / 2, 0) : og.createLinearGradient(0, seam - f / 2, 0, seam + f / 2);
+      grad.addColorStop(0, 'rgba(0,0,0,1)'); grad.addColorStop(1, 'rgba(0,0,0,0)');
+      og.globalCompositeOperation = 'destination-in';
+      og.fillStyle = grad; og.fillRect(0, 0, W, H);
+      g.drawImage(off, 0, 0);
     }
-    const s = segToShow(side, t);
-    if (!(s && s.video && s.video.readyState >= 2 && drawCover(s.video, s.video.videoWidth, s.video.videoHeight, r, s.mirror)))
-      placeholder(r, clean ? '' : `${sideName(side)}: noch leer`, side);
   }
   if (settings.divider) {
+    const ra = rectFor('A');
     g.fillStyle = '#000';
-    if (settings.layout === 'lr') g.fillRect(W / 2 - 3, 0, 6, H); else g.fillRect(0, H / 2 - 3, W, 6);
+    if (settings.layout === 'lr') g.fillRect(ra.w - 3, 0, 6, H); else g.fillRect(0, ra.h - 3, W, 6);
   }
 }
 
@@ -356,8 +409,8 @@ async function startPlayback(o) {
   if (o.dest) out.connect(o.dest);
   const C0 = ac.currentTime + 0.15, srcs = [];
   for (const s of state.segs) {
-    s.video.muted = !!s.buffer;
-    if (!s.buffer) continue;
+    s.video.muted = !!s.buffer || (o.only && s.side !== o.only);
+    if (!s.buffer || (o.only && s.side !== o.only)) continue;
     const skip = Math.max(0, o.from - s.start), len = s.dur - skip, off = s.offset + skip;
     if (len <= 0.02 || off >= s.buffer.duration) continue;
     const src = ac.createBufferSource();
@@ -394,13 +447,14 @@ function loop() {
   requestAnimationFrame(loop);
   if (state.mode === 'off') return;
   let t, live = null, liveFrom = Infinity, clean = false;
+  const only = state.mode === 'export' && exportCtl ? exportCtl.only : null;
   if (play) {
     t = play.time();
     syncVideos(t, ac.currentTime >= play.C0);
     live = play.live; liveFrom = play.liveFrom; clean = state.mode === 'export';
   } else if (state.mode === 'export') { t = 0; clean = true; }
   else { t = idleT; if (camOn) { live = state.next; liveFrom = -Infinity; } }
-  renderAt(t, live, liveFrom, clean);
+  renderAt(t, live, liveFrom, clean, only);
   onFrame(t);
 }
 
@@ -460,6 +514,8 @@ function updateUI() {
   const m = state.mode, idle = m === 'idle', n = state.next, o = other(n);
   const has = state.segs.length > 0;
   $('#stageBox').classList.toggle('tb', settings.layout === 'tb');
+  $('#stageBox').style.setProperty('--split', (settings.split * 100) + '%');
+  $('#seam').hidden = !(camOn && (idle || m === 'countdown' || m === 'rec'));
   for (const s of SIDES) {
     $('#tag' + s).querySelector('span').textContent =
       (camOn && (idle || m === 'countdown') && s === n) ? `${sideName(s)} · du` : sideName(s);
@@ -481,6 +537,10 @@ function updateUI() {
   $('#btnPreview').disabled = !has || !(idle || m === 'preview');
   $('#btnPreview').textContent = m === 'preview' ? 'Stopp' : 'Vorschau';
   $('#btnExport').disabled = !idle || !has;
+  for (const s of SIDES) {
+    $('#btnOnly' + s).textContent = `Nur ${sideName(s).toLowerCase()} einzeln`;
+    $('#btnOnly' + s).disabled = !idle || !state.segs.some(x => x.side === s);
+  }
   $('#btnFlip').disabled = !idle;
   $('#btnReset').disabled = !idle || !has;
   $('#recTimer').hidden = m !== 'rec';
@@ -492,7 +552,7 @@ function updateUI() {
     if (!has) hint = `Fang ${sideName(n).toLowerCase()} an: Sag deinen ersten Satz und tippe dann auf Stopp.`;
     else if (co > cn + 0.05) hint = `Ab ${fmt(cn)} läuft ${sideName(o).toLowerCase()} ab. Hör zu und reagiere. Wenn ${sideName(o).toLowerCase()} fertig ist, antworte und tippe auf Stopp.`;
     else hint = `${sideName(o)} ist hier schon zu Ende. Du sprichst ab ${fmt(cn)} einfach weiter.`;
-    if (has && pre > 0) hint += ` (${pre} s Vorlauf davor)`;
+    if (has && pre > 0) hint += ` (${String(Math.round(pre * 10) / 10).replace('.', ',')} s Vorlauf davor)`;
   } else if (m === 'rec' && recCtl) {
     hint = `Aufnahme ${sideName(recCtl.side).toLowerCase()} läuft. Tippe auf Stopp, wenn du fertig bist.`;
   }
@@ -510,7 +570,10 @@ async function openCamera() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
   camStream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: settings.facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    // with headphones there is no speaker bleed, so skip the voice filters that muffle the voice and duck playback
+    audio: settings.headphones
+      ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      : { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
   });
   camVideo.srcObject = camStream;
   await camVideo.play().catch(() => {});
@@ -620,11 +683,12 @@ async function stopPreview() {
 
 // ---------- export ----------
 let resultUrl = null, resultFile = null;
-async function startExport() {
+async function startExport(only) {
   const tot = total();
   if (!stage.captureStream) { toast('Dieser Browser kann kein Video erstellen.'); return; }
+  exportCtl = { only: only || null, done: false, pending: true };
   state.mode = 'export'; updateUI();
-  $('#expTitle').textContent = 'Video wird erstellt …';
+  $('#expTitle').textContent = only ? `${sideName(only)} wird einzeln erstellt …` : 'Video wird erstellt …';
   $('#expRun').hidden = false; $('#expDone').hidden = true; $('#expBar').style.width = '0%';
   $('#exportSheet').hidden = false;
   await positionAt(0);
@@ -638,11 +702,11 @@ async function startExport() {
   const chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.start(500);
-  exportCtl = { rec, chunks, vs, total: tot, mime: rec.mimeType || mime, done: false };
-  await startPlayback({ from: 0, dest });
+  Object.assign(exportCtl, { rec, chunks, vs, total: tot, mime: rec.mimeType || mime, pending: false });
+  await startPlayback({ from: 0, dest, only });
 }
 async function finishExport(cancel) {
-  const e = exportCtl; if (!e || e.done) return;
+  const e = exportCtl; if (!e || e.done || e.pending) return;
   e.done = true;
   stopPlayback();
   const stopped = new Promise(r => { e.rec.onstop = r; });
@@ -656,7 +720,8 @@ async function finishExport(cancel) {
   const blob = new Blob(e.chunks, { type });
   const ext = type.includes('mp4') ? 'mp4' : 'webm';
   const d = new Date(), p = x => String(x).padStart(2, '0');
-  const name = `klon-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
+  const part = e.only ? '-' + sideName(e.only).toLowerCase() : '';
+  const name = `klon${part}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
   if (resultUrl) URL.revokeObjectURL(resultUrl);
   resultUrl = URL.createObjectURL(blob);
   resultFile = new File([blob], name, { type });
@@ -733,6 +798,7 @@ $('#btnPreview').addEventListener('click', () => {
   if (state.mode === 'idle') startPreview(); else if (state.mode === 'preview') stopPreview();
 });
 $('#btnExport').addEventListener('click', () => { if (state.mode === 'idle' && state.segs.length) startExport(); });
+SIDES.forEach(s => $('#btnOnly' + s).addEventListener('click', () => { if (state.mode === 'idle' && state.segs.length) startExport(s); }));
 $('#btnExpCancel').addEventListener('click', () => finishExport(true));
 $('#btnExpClose').addEventListener('click', () => { $('#exportSheet').hidden = true; $('#resVideo').pause(); });
 $('#btnShare').addEventListener('click', async () => {
@@ -753,14 +819,25 @@ $('#btnReset').addEventListener('click', async () => {
 });
 $('#btnSettings').addEventListener('click', () => {
   $('#optLayout').value = settings.layout;
+  $('#optLook').value = settings.look;
+  $('#optSplit').value = String(Math.round(settings.split * 100));
+  $('#optFeather').value = String(settings.feather);
   $('#optPreroll').value = String(settings.preroll);
   $('#optMirror').checked = settings.mirror;
+  $('#optHeadphones').checked = settings.headphones;
   $('#optDivider').checked = settings.divider;
   $('#settingsSheet').hidden = false;
 });
 $('#optLayout').addEventListener('change', e => { settings.layout = e.target.value; saveSettings(); updateUI(); });
+$('#optLook').addEventListener('change', e => { settings.look = e.target.value; saveSettings(); updateUI(); });
+$('#optSplit').addEventListener('input', e => { settings.split = +e.target.value / 100; saveSettings(); updateUI(); });
+$('#optFeather').addEventListener('change', e => { settings.feather = +e.target.value; saveSettings(); });
 $('#optPreroll').addEventListener('change', e => { settings.preroll = +e.target.value; saveSettings(); updateUI(); });
 $('#optMirror').addEventListener('change', e => { settings.mirror = e.target.checked; saveSettings(); });
+$('#optHeadphones').addEventListener('change', async e => {
+  settings.headphones = e.target.checked; saveSettings();
+  if (camOn && state.mode === 'idle') { try { await openCamera(); } catch (err) { toast('Mikrofon ließ sich nicht neu starten.'); } }
+});
 $('#optDivider').addEventListener('change', e => { settings.divider = e.target.checked; saveSettings(); });
 $('#btnCloseSettings').addEventListener('click', () => { $('#settingsSheet').hidden = true; });
 $('#settingsSheet').addEventListener('click', e => { if (e.target.id === 'settingsSheet') e.target.hidden = true; });
