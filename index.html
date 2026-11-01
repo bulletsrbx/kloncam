@@ -199,8 +199,9 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
     <div class="small">Ein Raum: Stell das Handy fest hin und bewege es zwischen den Aufnahmen nicht. Jeder bleibt auf seiner Seite der gestrichelten Linie.</div>
     <div class="field"><label for="optPreroll">Vorlauf vor deinem Einsatz</label>
       <select id="optPreroll"><option value="0">aus</option><option value="1">1 s</option><option value="2">2 s</option><option value="3">3 s</option><option value="5">5 s</option></select></div>
-    <div class="field"><label for="optMicFilter">Sprachfilter vom Handy</label><input type="checkbox" id="optMicFilter"></div>
-    <div class="small">Normalerweise aus lassen: Die App gleicht beide Seiten selbst auf die gleiche Lautstärke an und dämpft das Lautsprecher-Echo. Nur einschalten, wenn es im Raum stark rauscht.</div>
+    <div class="field"><label for="optAudio">Ton beim Aufnehmen</label>
+      <select id="optAudio"><option value="speaker">Lautsprecher</option><option value="headphones">Kopfhörer</option></select></div>
+    <div class="small">Stell ein, wie du die andere Seite hörst. Mit Kopfhörern klingt die Stimme am natürlichsten. Beide Seiten werden im fertigen Video automatisch gleich laut gemacht.</div>
     <div class="field"><label for="optMirror">Selfie spiegeln</label><input type="checkbox" id="optMirror"></div>
     <div class="field"><label for="optDivider">Trennlinie</label><input type="checkbox" id="optDivider"></div>
     <div class="small">Das fertige Video ist 1080 × 1920 (9:16) für TikTok.</div>
@@ -247,11 +248,11 @@ const CAM_TYPES = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=a
 const EXPORT_TYPES = CAM_TYPES;
 
 // ---------- settings ----------
-const settings = { v: 3, layout: 'lr', look: 'room', split: 0.5, feather: 80, preroll: 2, mirror: true, divider: false, facing: 'user', micFilter: false };
+const settings = { v: 4, layout: 'lr', look: 'room', split: 0.5, feather: 80, preroll: 2, mirror: true, divider: false, facing: 'user', audio: 'speaker' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('kloncam.settings') || '{}')); } catch (e) {}
 if (settings.v < 2) Object.assign(settings, { look: 'room', split: 0.5, feather: 80, divider: false });
-if (settings.v < 3) { settings.micFilter = false; delete settings.headphones; }
-settings.v = 3;
+if (settings.v < 4) { settings.audio = 'speaker'; delete settings.headphones; delete settings.micFilter; }
+settings.v = 4;
 function saveSettings() { try { localStorage.setItem('kloncam.settings', JSON.stringify(settings)); } catch (e) {} }
 
 // ---------- state ----------
@@ -463,7 +464,13 @@ async function startPlayback(o) {
   const mix = o.mix || buildMix(o.only);
   await positionAt(o.from);
   const out = ac.createGain();
-  out.connect(ac.destination);
+  if (o.live) {
+    // while recording, play the other side louder (phone speaker) behind a limiter so it never clips
+    out.gain.value = 1.8;
+    const lim = ac.createDynamicsCompressor();
+    lim.threshold.value = -6; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = 0.003; lim.release.value = 0.15;
+    out.connect(lim); lim.connect(ac.destination);
+  } else out.connect(ac.destination);
   if (o.dest) out.connect(o.dest);
   const C0 = ac.currentTime + 0.15, srcs = [];
   for (const s of state.segs) s.video.muted = !!s.buffer || (o.only && s.side !== o.only);
@@ -625,10 +632,11 @@ async function openCamera() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
   camStream = await navigator.mediaDevices.getUserMedia({
     video: { facingMode: settings.facing, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-    // raw mic by default: the phone's voice filters pump the level mid-sentence; buildMix() levels and de-bleeds instead
-    audio: settings.micFilter
-      ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      : { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    // Auto gain stays off in both modes (it pumps the level mid-sentence); buildMix() levels the sides instead.
+    // Echo cancellation stays on for the speaker: without it iOS routes playback to the quiet earpiece.
+    audio: settings.audio === 'headphones'
+      ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      : { echoCancellation: true, noiseSuppression: false, autoGainControl: false }
   });
   camVideo.srcObject = camStream;
   await camVideo.play().catch(() => {});
@@ -880,7 +888,7 @@ $('#btnSettings').addEventListener('click', () => {
   $('#optFeather').value = String(settings.feather);
   $('#optPreroll').value = String(settings.preroll);
   $('#optMirror').checked = settings.mirror;
-  $('#optMicFilter').checked = settings.micFilter;
+  $('#optAudio').value = settings.audio;
   $('#optDivider').checked = settings.divider;
   $('#settingsSheet').hidden = false;
 });
@@ -890,8 +898,8 @@ $('#optSplit').addEventListener('input', e => { settings.split = +e.target.value
 $('#optFeather').addEventListener('change', e => { settings.feather = +e.target.value; saveSettings(); });
 $('#optPreroll').addEventListener('change', e => { settings.preroll = +e.target.value; saveSettings(); updateUI(); });
 $('#optMirror').addEventListener('change', e => { settings.mirror = e.target.checked; saveSettings(); });
-$('#optMicFilter').addEventListener('change', async e => {
-  settings.micFilter = e.target.checked; saveSettings();
+$('#optAudio').addEventListener('change', async e => {
+  settings.audio = e.target.value; saveSettings();
   if (camOn && state.mode === 'idle') { try { await openCamera(); } catch (err) { toast('Mikrofon ließ sich nicht neu starten.'); } }
 });
 $('#optDivider').addEventListener('change', e => { settings.divider = e.target.checked; saveSettings(); });
