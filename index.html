@@ -51,6 +51,8 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px;pa
 .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.02em}
 .mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(90deg,var(--sideA) 0 50%,var(--sideB) 50% 100%);position:relative;box-shadow:0 0 0 1px rgba(255,255,255,.12) inset}
 .mark::after{content:"";position:absolute;inset:0;margin:auto;width:2px;height:100%;background:var(--bg)}
+.brandWords{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.versionTag{border:0;padding:0;background:none;color:var(--sideB);font:600 10.5px/1.2 var(--mono);letter-spacing:.02em;cursor:pointer;text-align:left}
 .hdrRight{display:flex;align-items:center;gap:8px}
 .qBadge{font:600 12px/1 var(--mono);letter-spacing:.04em;padding:8px 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line2);color:var(--fg);cursor:pointer}
 .iconBtn{width:38px;height:38px;border-radius:11px;background:var(--surface);border:1px solid var(--line2);display:grid;place-items:center;cursor:pointer;padding:0}
@@ -188,6 +190,11 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
 .sheetBg{position:fixed;inset:0;background:rgba(0,0,0,.62);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
 .sheet{background:var(--surface);border:1px solid var(--line2);border-bottom:0;width:min(520px,100%);border-radius:22px 22px 0 0;padding:10px max(18px,env(safe-area-inset-left,0px)) max(20px,env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;max-height:92dvh;overflow:auto}
 .sheet::before{content:"";align-self:center;width:38px;height:5px;border-radius:9px;background:var(--line2);flex:none}
+#updateSheet{z-index:40}
+#updateSheet .sheet{gap:16px}
+#releaseChanges{margin:0;padding-left:20px;display:grid;gap:10px;color:#cfd2db;font-size:14px}
+#releaseVersion{align-self:flex-start;color:var(--sideB);font:700 12px/1 var(--mono);background:var(--surface2);border:1px solid var(--line2);border-radius:8px;padding:7px 9px}
+#cameraNotice{font-size:13px;color:#f4cf93;text-align:left}
 .sheet h2{margin:0;font-size:19px;letter-spacing:-.01em}
 .sheet h3{margin:8px 0 -4px;font:700 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .field{display:flex;justify-content:space-between;align-items:center;gap:12px}
@@ -224,7 +231,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
 <body>
 <div id="app">
   <header>
-    <div class="brand"><span class="mark" aria-hidden="true"></span>KlonCam</div>
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brandWords"><span>KlonCam</span><button class="versionTag" data-app-version type="button" aria-label="Geladene Version und Änderungen anzeigen">Version 1.2.0</button></span></div>
     <div class="hdrRight">
       <button class="qBadge" id="qBadge" type="button" aria-label="Qualität einstellen">1080p · 30</button>
       <button class="iconBtn ic i-sliders" id="btnSettings" type="button" aria-label="Einstellungen"></button>
@@ -263,6 +270,9 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
         </div>
         <div class="recLabel" id="recLabel">Links aufnehmen</div>
         <div class="hint" id="hint"></div>
+        <div class="small" id="cameraStatus" style="text-align:center" aria-live="polite"></div>
+        <div class="note" id="cameraNotice" hidden></div>
+        <button class="btn" id="btnRestartCamera" type="button" hidden>Kamera neu starten</button>
       </div>
 
       <div class="card">
@@ -327,7 +337,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
 
 <div id="startCard">
   <div class="startInner">
-          <div class="brand"><span class="mark" aria-hidden="true"></span>KlonCam</div>
+          <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brandWords"><span>KlonCam</span><button class="versionTag" data-app-version type="button" aria-label="Geladene Version und Änderungen anzeigen">Version 1.2.0</button></span></div>
           <div class="eyebrow">Splitscreen-Studio</div>
           <h1>Mit dir selbst reden, ohne Zählen und Raten</h1>
           <ol>
@@ -390,6 +400,8 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
     <div class="field"><label for="optAudio">Ton beim Aufnehmen</label>
       <select id="optAudio"><option value="speaker">Lautsprecher</option><option value="headphones">Kopfhörer</option></select></div>
     <div class="small">Stell ein, wie du die andere Seite hörst. Mit Kopfhörern klingt die Stimme am natürlichsten. Beide Seiten werden im fertigen Video automatisch gleich laut gemacht.</div>
+    <button class="btn ghost" id="btnCheckUpdate" type="button">Nach Update suchen</button>
+    <div class="small" id="updateCheckStatus" role="status"></div>
     <button class="btn primary big" id="btnCloseSettings" type="button">Fertig</button>
   </div>
 </div>
@@ -414,20 +426,33 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
   </div>
 </div>
 
+<div class="sheetBg" id="updateSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="releaseTitle" aria-describedby="releaseStatus">
+    <span id="releaseVersion">Version 1.2.0</span>
+    <h2 id="releaseTitle">Update übernommen</h2>
+    <p class="small" id="releaseStatus" style="margin:0"></p>
+    <ul id="releaseChanges"></ul>
+    <button class="btn primary big" id="btnReleaseReload" type="button" hidden>Jetzt aktualisieren</button>
+    <button class="btn primary big" id="btnReleaseDone" type="button">Los geht’s</button>
+  </div>
+</div>
+
 <div id="toast" hidden></div>
-<video id="cam" playsinline muted autoplay hidden></video>
-<div id="mediaBox"></div>
+<div id="mediaBox" aria-hidden="true"><video id="cam" playsinline webkit-playsinline muted autoplay></video></div>
 
 <script src="lib/mp4box.all.min.js"></script>
 <script src="lib/mp4-muxer.min.js"></script>
 <script>
 (() => {
 'use strict';
+// This embedded release identifies the code actually loaded, even if version.json is newer.
+const APP_RELEASE = {"version": "1.2.0", "build": 2026110202, "date": "02.11.2026", "changes": ["Update-Popup: Nach einer neuen Version siehst du einmalig, was sich geändert hat.", "Versionsnummer auf dem Startbildschirm und in der App. Antippen öffnet die Änderungen erneut.", "Update-Prüfung beim Öffnen und Zurückkehren zur App; neue Versionen lassen sich gezielt neu laden.", "Kameravorschau wird beim Qualitätswechsel frisch aufgebaut und auf laufende Bilder geprüft.", "Liefert die Kamera bei 60 fps keine Bilder, versucht die App eine funktionierende Aufnahme-Einstellung. Kamera- und Export-Bildrate werden getrennt angezeigt."]};
 const SIDES = ['A', 'B'];
 const $ = s => document.querySelector(s);
 const stage = $('#stage');
 let g = stage.getContext('2d');
-const camVideo = $('#cam'), mediaBox = $('#mediaBox');
+let camVideo = $('#cam');
+const mediaBox = $('#mediaBox');
 const other = s => s === 'A' ? 'B' : 'A';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // yields one task without setTimeout's 4 ms clamp, so decoder/encoder callbacks can run
@@ -439,7 +464,7 @@ const tick = (() => {
 
 // Let the recorder choose an H.264 level matching the actual resolution/rate.
 // Forcing Baseline Level 3.1 here can break 1080p, 4K and 60 fps on iOS.
-const CAM_TYPES = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4',
+const CAM_TYPES = ['video/mp4', 'video/mp4;codecs=avc1,mp4a.40.2',
   'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 
 // ---------- settings ----------
@@ -474,7 +499,7 @@ const media = new Map();   // blobId -> {blob, mime, url, buffer, duration, save
 const history = [];        // undo snapshots: {segs: [meta], next}
 const future = [];         // redo snapshots, filled by undo()
 let ac = null, camStream = null, camOn = false, camFacing = 'user', play = null, recCtl = null, exportCtl = null;
-let idleT = 0, cdCancel = false, wakeLock = null, restored = false;
+let idleT = 0, cdCancel = false, wakeLock = null, restored = false, cameraOpening = null;
 
 const sideName = s => settings.layout === 'lr' ? (s === 'A' ? 'Links' : 'Rechts') : (s === 'A' ? 'Oben' : 'Unten');
 const coverage = side => state.segs.reduce((m, s) => s.side === side ? Math.max(m, s.start + s.dur) : m, 0);
@@ -1049,7 +1074,10 @@ function updateUI() {
   });
   const rb = $('#btnRec');
   rb.classList.toggle('on', m === 'rec');
-  rb.disabled = !camOn || state.cutMode || !(idle || m === 'rec' || m === 'countdown');
+  rb.disabled = !!cameraOpening || !camOn || state.cutMode || !(idle || m === 'rec' || m === 'countdown');
+  for (const id of ['optRes', 'optFps', 'optCamera', 'optAudio', 'optZoom', 'btnRestartCamera']) {
+    $('#' + id).disabled = !!cameraOpening || !(idle || m === 'off');
+  }
   rb.setAttribute('aria-label', m === 'rec' ? 'Stopp' : 'Aufnehmen');
   $('#recLabel').textContent = m === 'rec' ? 'Stopp' : m === 'countdown' ? 'Abbrechen' : `${sideName(n)} aufnehmen`;
   $('#btnUndo').disabled = !idle || (!has && !history.length);
@@ -1071,7 +1099,8 @@ function updateUI() {
   $('#btnCutMode').disabled = !idle || !has;
   $('#cutBar').hidden = !state.cutMode;
   updateCutInfo();
-  $('#btnFlip').disabled = !idle;
+  $('#btnFlip').disabled = !idle || !!cameraOpening;
+  document.querySelectorAll('#lensRow button').forEach(b => { b.disabled = !idle || !!cameraOpening; });
   $('#btnReset').disabled = !idle || !has;
   $('#recTimer').hidden = m !== 'rec';
   $('#busy').hidden = m !== 'busy';
@@ -1110,34 +1139,120 @@ async function mainBackCamera() {
   const plain = back.find(d => !/ultra|tele|dual|triple|duo|weitwinkel/i.test(d.label));
   return (plain || back[0] || {}).deviceId || '';
 }
-async function openCamera() {
+// A video node with stale iOS rendering state can stay black even with a live track.
+// Recreate the node on each attach instead of reusing a display:none video element.
+function detachCamera() {
+  camVideo.pause(); camVideo.srcObject = null;
   if (camStream) camStream.getTracks().forEach(t => t.stop());
+  camStream = null; camOn = false;
+}
+function waitCameraFrames(v, ms = 3500) {
+  return new Promise(resolve => {
+    let done = false, callback = null, poll = null, count = 0;
+    const initial = v.currentTime;
+    const finish = ok => {
+      if (done) return; done = true; clearTimeout(timer); clearInterval(poll);
+      if (callback != null && v.cancelVideoFrameCallback) v.cancelVideoFrameCallback(callback);
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), ms);
+    if (v.requestVideoFrameCallback) {
+      const frame = () => {
+        if (done) return;
+        if (v.readyState >= 2 && v.videoWidth && ++count >= 2) { finish(true); return; }
+        callback = v.requestVideoFrameCallback(frame);
+      };
+      callback = v.requestVideoFrameCallback(frame);
+    } else {
+      poll = setInterval(() => {
+        if (v.error) finish(false);
+        else if (v.readyState >= 2 && v.videoWidth && v.currentTime > initial + 0.03) finish(true);
+      }, 50);
+    }
+  });
+}
+async function attachCamera(stream) {
+  const old = camVideo;
+  old.pause(); old.srcObject = null;
+  const video = document.createElement('video');
+  video.id = 'cam'; video.muted = true; video.defaultMuted = true;
+  video.autoplay = true; video.playsInline = true;
+  video.setAttribute('muted', ''); video.setAttribute('playsinline', ''); video.setAttribute('webkit-playsinline', '');
+  old.replaceWith(video); camVideo = video;
+  video.srcObject = stream;
+  // play() itself can hang on a camera stream that never produces its first frame.
+  let timer;
+  try {
+    await Promise.race([video.play(), new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Kamera startet ohne Videobilder')), 4000);
+    })]);
+  } finally { clearTimeout(timer); }
+  if (!await waitCameraFrames(video)) throw new Error('Die Kamera liefert keine laufenden Videobilder');
+}
+async function openCamera() {
+  if (cameraOpening) return cameraOpening;
+  cameraOpening = startCamera();
+  try { return await cameraOpening; }
+  finally { cameraOpening = null; updateUI(); }
+}
+async function startCamera() {
+  const hadStream = !!camStream;
+  detachCamera();
+  if (hadStream) await sleep(200); // let iOS release its old capture session before switching formats
   const camW = { '720': 1280, '1080': 1920, '2160': 3840 }[settings.res] || 1920;
-  const video = { width: { ideal: camW }, height: { ideal: Math.round(camW * 9 / 16) }, frameRate: { ideal: settings.fps, max: settings.fps } };
-  if (settings.cameraId) video.deviceId = { exact: settings.cameraId }; else video.facingMode = settings.facing;
-  // Auto gain stays off in both modes (it pumps the level mid-sentence); buildMix() levels the sides instead.
-  // Echo cancellation stays on for the speaker: without it iOS routes playback to the quiet earpiece.
+  const requestedFps = settings.fps, candidates = [{ w: camW, fps: requestedFps }];
+  if (camW > 1920) candidates.push({ w: 1920, fps: requestedFps });
+  if (requestedFps > 30) candidates.push({ w: Math.min(camW, 1920), fps: 30 });
   const audio = settings.audio === 'headphones'
     ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
     : { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
-  try { camStream = await navigator.mediaDevices.getUserMedia({ video, audio }); }
-  catch (e) {
-    if (!settings.cameraId) throw e;
-    settings.cameraId = ''; saveSettings();
-    delete video.deviceId; video.facingMode = settings.facing;
-    camStream = await navigator.mediaDevices.getUserMedia({ video, audio });
+  let failure = null;
+  for (const candidate of candidates) {
+    const video = { frameRate: candidate.fps > 30 ? { min: 59, ideal: 60, max: 60 } : { ideal: 30, max: 30 },
+      width: { ideal: candidate.w }, height: { ideal: Math.round(candidate.w * 9 / 16) } };
+    if (settings.cameraId) video.deviceId = { exact: settings.cameraId }; else video.facingMode = settings.facing;
+    $('#cameraStatus').textContent = `Kamera wird mit ${candidate.fps} fps gestartet …`;
+    let stream = null;
+    try {
+      try { stream = await navigator.mediaDevices.getUserMedia({ video, audio }); }
+      catch (e) {
+        const missingDevice = e.name === 'NotFoundError' || (e.name === 'OverconstrainedError' && e.constraint === 'deviceId');
+        if (!settings.cameraId || !missingDevice) throw e;
+        settings.cameraId = ''; saveSettings(); delete video.deviceId; video.facingMode = settings.facing;
+        stream = await navigator.mediaDevices.getUserMedia({ video, audio });
+      }
+      try { await attachCamera(stream); }
+      catch (e) {
+        // Detach/re-attach is also the WebKit workaround for a stuck camera rendering layer.
+        camVideo.pause(); camVideo.srcObject = null; await sleep(100);
+        await attachCamera(stream);
+      }
+      camStream = stream; camOn = true;
+      const vt = stream.getVideoTracks()[0], st = vt && vt.getSettings ? vt.getSettings() : {};
+      camFacing = st.facingMode || (settings.cameraId ? (isFrontLabel(vt.label) ? 'user' : 'environment') : settings.facing);
+      const rate = Number.isFinite(st.frameRate) ? st.frameRate : candidate.fps;
+      const actualFps = secs(rate) + ' fps', dimensions = `${st.width || camVideo.videoWidth}×${st.height || camVideo.videoHeight}`;
+      $('#cameraStatus').textContent = `Kamera ${dimensions} · ${actualFps} | Export ${settings.fps} fps`;
+      $('#cameraInfo').textContent = `Kamera liefert ${dimensions} · ${actualFps}. Der Export berechnet feste ${settings.fps} fps; fehlende Kamerabilder werden wiederholt.`;
+      const fallback = requestedFps > 30 && rate < 55;
+      $('#cameraNotice').hidden = !fallback;
+      $('#cameraNotice').textContent = fallback ? `Diese Kamera startet hier gerade nicht mit 60 fps. Die Aufnahme läuft mit ${actualFps}; der Export bleibt bei 60 fps und wiederholt dafür Bilder. Du kannst den Kamerastart erneut versuchen.` : '';
+      $('#btnRestartCamera').hidden = !fallback;
+      applyZoom(); fillCameraList(); fillLensRow();
+      return;
+    } catch (e) {
+      failure = e;
+      camVideo.pause(); camVideo.srcObject = null;
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (e.name === 'NotAllowedError' || e.name === 'SecurityError') break;
+      await sleep(200);
+    }
   }
-  const cameraReady = waitEvent(camVideo, 'loadeddata', 10000);
-  camVideo.srcObject = camStream;
-  await camVideo.play();
-  if (camVideo.readyState < 2 && !await cameraReady) throw new Error('Die Kamera liefert bei dieser Qualität kein Bild. Versuche 1080p mit 30 fps.');
-  const vt = camStream.getVideoTracks()[0], st = vt && vt.getSettings ? vt.getSettings() : {};
-  camFacing = st.facingMode || (settings.cameraId ? (isFrontLabel(vt.label) ? 'user' : 'environment') : settings.facing);
-  const actualFps = Number.isFinite(st.frameRate) ? secs(st.frameRate) + ' fps' : 'Bildrate unbekannt';
-  $('#cameraInfo').textContent = `Kamera liefert ${st.width || camVideo.videoWidth}×${st.height || camVideo.videoHeight} · ${actualFps}. Der Export berechnet feste ${settings.fps} fps; fehlende Kamerabilder werden wiederholt.`;
-  applyZoom();
-  fillCameraList();
-  fillLensRow();
+  detachCamera();
+  $('#cameraStatus').textContent = 'Kamera liefert keine Bilder';
+  $('#cameraNotice').hidden = false; $('#btnRestartCamera').hidden = false;
+  $('#cameraNotice').textContent = 'Der Kamerastart ist fehlgeschlagen. Versuche „Kamera neu starten“ oder wähle 1080p mit 30 fps. Deine bisherigen Aufnahmen bleiben erhalten.';
+  throw failure || new Error('Kamera konnte nicht gestartet werden');
 }
 // iPhone-camera style lens buttons: 0.5× = ultra wide, 1× = main, 2× = main zoomed, Tele = telephoto lens
 async function fillLensRow() {
@@ -1166,7 +1281,7 @@ async function fillLensRow() {
   }
 }
 async function chooseLens(o) {
-  if (camOn && state.mode !== 'idle') return;
+  if (cameraOpening || !(state.mode === 'idle' || state.mode === 'off')) return;
   const switching = (o.id || '') !== (settings.cameraId || '');
   settings.cameraId = o.id || ''; settings.zoom = o.zoom; saveSettings();
   if (switching) await reopenCamera('Dieses Objektiv ließ sich nicht öffnen.');
@@ -1230,6 +1345,7 @@ async function goIdle() {
   idleT = coverage(state.next);
   updateUI();
   await positionAt(state.cursor != null ? state.cursor : idleT);
+  if (availableRelease && availableRelease.build !== dismissedReleaseBuild && $('#updateSheet').hidden) showRelease(availableRelease);
 }
 async function requestWake() {
   try {
@@ -1239,7 +1355,12 @@ async function requestWake() {
     }
   } catch (e) {}
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && camOn) requestWake(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && camOn) {
+    requestWake();
+    if (state.mode === 'idle' && !cameraOpening) reopenCamera('Kamera bitte erneut starten.');
+  }
+});
 // iOS only lets audio start from a touch, so every touch nudges a suspended AudioContext back on
 document.addEventListener('pointerdown', () => { if (ac && ac.state !== 'running') ac.resume().catch(() => {}); }, true);
 
@@ -1255,6 +1376,12 @@ async function startRecording() {
   cd.hidden = true;
   await seeking;
   if (cdCancel) { await goIdle(); return; }
+  if (!camStream || !await waitCameraFrames(camVideo, 2500)) {
+    await goIdle();
+    toast('Die Kamera liefert gerade keine laufenden Bilder. Sie wird neu gestartet.');
+    await reopenCamera('Die Kamera ließ sich nicht neu starten.');
+    return;
+  }
   const audioOk = await ensureAudio();
   if (!audioOk && state.segs.length) toast('Ton ließ sich nicht starten. Die Aufnahme läuft trotzdem.');
   const now = audioOk ? () => ac.currentTime : () => performance.now() / 1000;
@@ -1307,7 +1434,15 @@ async function stopRecording() {
     const m = await prepMedia(blobId, new Blob(r.chunks, { type }), type);
     await makeSegVideo(seg);
     if (m.duration < seg.offset + seg.dur) seg.dur = Math.max(0.1, m.duration - seg.offset);
-  } catch (e) { disposeSegVideo(seg); media.delete(blobId); toast('Die Aufnahme konnte nicht gelesen werden.'); await goIdle(); return; }
+  } catch (e) {
+    console.error('Recording could not be read', { version: APP_RELEASE.version, mime: type, camera: $('#cameraStatus').textContent, error: e });
+    disposeSegVideo(seg);
+    const failed = media.get(blobId); if (failed && failed.url) URL.revokeObjectURL(failed.url);
+    media.delete(blobId);
+    $('#cameraNotice').hidden = false; $('#btnRestartCamera').hidden = false;
+    $('#cameraNotice').textContent = 'Die neue Aufnahme konnte nicht gelesen werden. Starte die Kamera neu oder versuche 1080p mit 30 fps. Deine bisherigen Aufnahmen bleiben erhalten.';
+    toast('Die Aufnahme konnte nicht gelesen werden.'); await goIdle(); return;
+  }
   pushHistory();
   history[history.length - 1].next = r.side;
   state.segs.push(seg);
@@ -1693,8 +1828,8 @@ async function saveAll() {
     bs.getAllKeys().onsuccess = e => e.target.result.forEach(k => {
       if (!keep.has(k)) { bs.delete(k); const m = media.get(k); if (m) m.saved = false; }
     });
-    await txDone(tx); db.close();
-  } catch (e) { toast('Speichern im Browser hat nicht geklappt. Aufnahmen bleiben nur bis zum Neuladen.'); }
+    await txDone(tx); db.close(); return true;
+  } catch (e) { toast('Speichern im Browser hat nicht geklappt. Aufnahmen bleiben nur bis zum Neuladen.'); return false; }
 }
 async function loadStore() {
   try {
@@ -1780,7 +1915,7 @@ $('#btnFlip').addEventListener('click', async () => {
   settings.facing = camFacing === 'user' ? 'environment' : 'user';
   settings.cameraId = settings.facing === 'environment' ? await mainBackCamera() : '';
   settings.zoom = 1; saveSettings();
-  try { await openCamera(); } catch (e) { toast('Die andere Kamera ließ sich nicht öffnen.'); }
+  await reopenCamera('Die andere Kamera ließ sich nicht öffnen.');
 });
 $('#btnReset').addEventListener('click', async () => {
   if (state.mode !== 'idle' || !state.segs.length) return;
@@ -1824,9 +1959,12 @@ $('#optPreroll').addEventListener('change', e => { settings.preroll = +e.target.
 $('#optMirror').addEventListener('change', e => { settings.mirror = e.target.checked; saveSettings(); });
 $('#optDivider').addEventListener('change', e => { settings.divider = e.target.checked; saveSettings(); });
 async function reopenCamera(msg) {
-  if (!camOn || state.mode !== 'idle') return;
-  try { await openCamera(); } catch (err) { toast(msg); }
+  if (state.mode !== 'idle' || cameraOpening) return;
+  state.mode = 'busy'; updateUI();
+  try { await openCamera(); } catch (err) { console.warn('Camera restart failed', err); toast(msg); }
+  finally { await goIdle(); }
 }
+$('#btnRestartCamera').addEventListener('click', () => reopenCamera('Die Kamera ließ sich nicht neu starten.'));
 $('#optAudio').addEventListener('change', e => { settings.audio = e.target.value; saveSettings(); reopenCamera('Mikrofon ließ sich nicht neu starten.'); });
 $('#optCamera').addEventListener('change', e => { settings.cameraId = e.target.value; settings.zoom = 1; saveSettings(); reopenCamera('Diese Kamera ließ sich nicht öffnen.'); });
 $('#optZoom').addEventListener('input', e => {
@@ -1841,6 +1979,112 @@ $('#optFps').addEventListener('change', e => { settings.fps = +e.target.value; s
 $('#btnCloseSettings').addEventListener('click', () => { $('#settingsSheet').hidden = true; });
 $('#settingsSheet').addEventListener('click', e => { if (e.target.id === 'settingsSheet') e.target.hidden = true; });
 
+// ---------- release notes and update checks ----------
+let dismissedReleaseBuild = 0;
+let availableRelease = null, updateChecking = false, lastUpdateCheck = 0, shownRelease = null, releaseFocus = null;
+const seenReleaseKey = 'kloncam.seenRelease';
+const safeToUpdate = () => !cameraOpening && (state.mode === 'off' || state.mode === 'idle');
+function showRelease(release = APP_RELEASE) {
+  if (!safeToUpdate()) return;
+  if ($('#updateSheet').hidden) releaseFocus = document.activeElement;
+  shownRelease = release;
+  const newer = release.build > APP_RELEASE.build;
+  $('#releaseTitle').textContent = newer ? 'Ein Update ist verfügbar' : 'Update übernommen';
+  $('#releaseVersion').textContent = 'Version ' + release.version;
+  $('#releaseStatus').textContent = newer
+    ? `Aktuell geladen: Version ${APP_RELEASE.version}. Lade jetzt Version ${release.version}, um die Änderungen zu übernehmen. Deine gespeicherten Aufnahmen bleiben erhalten.`
+    : `Version ${APP_RELEASE.version} ist auf diesem Gerät geladen. Das hat sich geändert:`;
+  const list = $('#releaseChanges'); list.textContent = '';
+  for (const change of release.changes) { const li = document.createElement('li'); li.textContent = change; list.appendChild(li); }
+  $('#btnReleaseReload').hidden = !newer;
+  $('#btnReleaseDone').textContent = newer ? 'Später' : 'Los geht’s';
+  $('#btnReleaseDone').classList.toggle('primary', !newer);
+  $('#btnReleaseReload').disabled = false;
+  $('#updateSheet').hidden = false;
+  for (const id of ['app', 'startCard', 'settingsSheet', 'exportSheet']) $('#' + id).inert = true;
+  (newer ? $('#btnReleaseReload') : $('#btnReleaseDone')).focus({ preventScroll: true });
+}
+function closeRelease() {
+  if (shownRelease && shownRelease.build === APP_RELEASE.build) {
+    try { localStorage.setItem(seenReleaseKey, APP_RELEASE.version); } catch (e) {}
+  }
+  if (shownRelease && shownRelease.build > APP_RELEASE.build) dismissedReleaseBuild = shownRelease.build;
+  $('#updateSheet').hidden = true;
+  for (const id of ['app', 'startCard', 'settingsSheet', 'exportSheet']) $('#' + id).inert = false;
+  const target = releaseFocus && releaseFocus !== document.body && releaseFocus.isConnected ? releaseFocus
+    : ($('#startCard').hidden ? document.querySelector('[data-app-version]') : $('#btnStart'));
+  target.focus({ preventScroll: true });
+}
+function validRelease(value) {
+  return value && Number.isSafeInteger(value.build) && value.build > 0 &&
+    typeof value.version === 'string' && /^\d+\.\d+\.\d+$/.test(value.version) &&
+    Array.isArray(value.changes) && value.changes.length <= 20 && value.changes.every(x => typeof x === 'string' && x.length <= 500);
+}
+async function checkForUpdates(manual = false) {
+  if (updateChecking || document.visibilityState === 'hidden') return;
+  if (!manual && Date.now() - lastUpdateCheck < 60000) return;
+  lastUpdateCheck = Date.now(); updateChecking = true;
+  $('#btnCheckUpdate').disabled = true;
+  if (manual) $('#updateCheckStatus').textContent = 'Suche nach Updates …';
+  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const url = new URL('version.json', location.href); url.searchParams.set('check', String(Date.now()));
+    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (!response.ok) throw new Error('Updateprüfung nicht verfügbar');
+    const release = await response.json();
+    if (!validRelease(release)) throw new Error('Versionsinformation ungültig');
+    if (release.build > APP_RELEASE.build) {
+      availableRelease = release;
+      $('#updateCheckStatus').textContent = `Version ${release.version} ist verfügbar. Geladen: ${APP_RELEASE.version}.`;
+      document.querySelectorAll('[data-app-version]').forEach(el => { el.textContent = `Version ${APP_RELEASE.version} · Update verfügbar`; });
+      if (safeToUpdate() && (manual || release.build !== dismissedReleaseBuild)) showRelease(release);
+    } else {
+      $('#updateCheckStatus').textContent = `Du hast Version ${APP_RELEASE.version}. Aktuell ist kein neueres Update verfügbar.`;
+      if (manual) showRelease();
+    }
+  } catch (e) {
+    $('#updateCheckStatus').textContent = `Geladen: Version ${APP_RELEASE.version}. Updates können gerade nicht geprüft werden.`;
+    if (manual) toast('Updateprüfung gerade nicht möglich. Versuch es mit einer Internetverbindung erneut.');
+  } finally { clearTimeout(timeout); updateChecking = false; $('#btnCheckUpdate').disabled = false; }
+}
+$('#btnReleaseDone').addEventListener('click', closeRelease);
+document.querySelectorAll('[data-app-version]').forEach(el => {
+  el.textContent = 'Version ' + APP_RELEASE.version;
+  el.addEventListener('click', () => { showRelease(availableRelease || APP_RELEASE); checkForUpdates(); });
+});
+$('#btnCheckUpdate').addEventListener('click', () => checkForUpdates(true));
+$('#btnReleaseReload').addEventListener('click', async () => {
+  if (!safeToUpdate() || !availableRelease) return;
+  $('#btnReleaseReload').disabled = true;
+  // Before camera start, state.segs is empty even if IndexedDB contains saved takes.
+  // Never call saveAll then: it would replace the saved project with an empty one.
+  if (restored && !await saveAll()) {
+    $('#releaseStatus').textContent = 'Die Aufnahmen konnten gerade nicht gesichert werden. Bitte zuerst dein Video exportieren. Das Update wurde nicht geladen.';
+    $('#btnReleaseReload').disabled = false; return;
+  }
+  const url = new URL(location.href);
+  url.searchParams.set('kloncam_version', String(availableRelease.build));
+  url.searchParams.set('reload', Date.now().toString(36));
+  location.replace(url.href);
+});
+document.addEventListener('keydown', e => {
+  if ($('#updateSheet').hidden) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeRelease(); }
+  if (e.key === 'Tab') {
+    const first = $('#btnReleaseReload').hidden ? $('#btnReleaseDone') : $('#btnReleaseReload'), last = $('#btnReleaseDone');
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+});
+window.addEventListener('pageshow', () => checkForUpdates());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdates(); });
+// Check while open, but never interrupt a take, playback or export with an update dialog.
+setInterval(() => checkForUpdates(), 60000);
+let releaseSeen = false;
+try { releaseSeen = localStorage.getItem(seenReleaseKey) === APP_RELEASE.version; } catch (e) {}
+if (!releaseSeen) showRelease();
+checkForUpdates();
+
 // first paint: show the empty split and how many takes are waiting
 renderAt(0, null, Infinity, false);
 updateUI();
@@ -1849,7 +2093,7 @@ loadStore().then(({ segs }) => {
   if (segs.length) { const n = $('#savedNote'); n.textContent = `${segs.length} gespeicherte Aufnahmen warten und werden beim Start geladen.`; n.hidden = false; }
 });
 requestAnimationFrame(loop);
-window.__kloncam = { state, settings, media, canOffline, get ac() { return ac; } }; // debug handle
+window.__kloncam = { state, settings, media, canOffline, release: APP_RELEASE, get ac() { return ac; } }; // debug handle
 })();
 </script>
 </body>

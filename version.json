@@ -1,0 +1,12 @@
+{
+  "version": "1.2.0",
+  "build": 2026110202,
+  "date": "02.11.2026",
+  "changes": [
+    "Update-Popup: Nach einer neuen Version siehst du einmalig, was sich geändert hat.",
+    "Versionsnummer auf dem Startbildschirm und in der App. Antippen öffnet die Änderungen erneut.",
+    "Update-Prüfung beim Öffnen und Zurückkehren zur App; neue Versionen lassen sich gezielt neu laden.",
+    "Kameravorschau wird beim Qualitätswechsel frisch aufgebaut und auf laufende Bilder geprüft.",
+    "Liefert die Kamera bei 60 fps keine Bilder, versucht die App eine funktionierende Aufnahme-Einstellung. Kamera- und Export-Bildrate werden getrennt angezeigt."
+  ]
+}
