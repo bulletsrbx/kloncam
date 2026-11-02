@@ -134,8 +134,14 @@ main{display:grid;gap:16px;align-items:start}
 .tlLabels span{display:flex;align-items:center;gap:6px}
 .tlLabels span:not(:first-child)::before{content:"";width:6px;height:6px;border-radius:50%}
 #labA::before{background:var(--sideA)} #labB::before{background:var(--sideB)}
-.tlTracks{position:relative;display:grid;grid-template-rows:16px 34px 34px;gap:6px;min-width:0;touch-action:none;cursor:pointer;padding-block:4px}
-.ruler{position:relative;border-bottom:1px solid var(--line2)}
+.tlTracks{position:relative;display:grid;grid-template-rows:16px 34px 34px;gap:6px;min-width:0;width:100%;touch-action:pan-x;cursor:pointer;padding-block:4px}
+.tlScroll{min-width:0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overscroll-behavior-x:contain}
+.ruler{position:relative;border-bottom:1px solid var(--line2);touch-action:pan-x}
+.zoomed .ruler{cursor:grab;background:repeating-linear-gradient(90deg,transparent 0 6px,rgba(255,255,255,.03) 6px 7px)}
+.zoomGrp{display:flex;align-items:center;gap:6px}
+.zoomGrp span{min-width:3.2em;text-align:center;color:var(--fg)}
+.zBtn{width:30px;height:30px;border-radius:9px;border:1px solid var(--line2);background:var(--surface2);color:var(--fg);font:700 16px/1 var(--mono);cursor:pointer;padding:0}
+.zBtn:disabled{opacity:.35;cursor:default}
 .ruler .tk{position:absolute;bottom:0;width:1px;height:5px;background:var(--dim)}
 .ruler .tk.major{height:8px;background:var(--muted)}
 .ruler .tk b{position:absolute;bottom:9px;left:3px;font:500 9.5px/1 var(--mono);color:var(--muted);white-space:nowrap}
@@ -147,9 +153,19 @@ main{display:grid;gap:16px;align-items:start}
 .playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--fg);border-radius:2px;margin-left:-1px;pointer-events:none;box-shadow:0 0 8px rgba(255,255,255,.35)}
 .playhead::before{content:"";position:absolute;top:-1px;left:-5px;width:12px;height:10px;background:var(--fg);clip-path:polygon(0 0,100% 0,50% 100%)}
 .tlSel{position:absolute;top:22px;bottom:0;background:rgba(255,59,78,.28);border-inline:2px solid var(--rec);border-radius:4px;pointer-events:none}
-.tlMeta{display:flex;justify-content:space-between;color:var(--muted);font:500 11.5px/1.3 var(--mono)}
+.tlMeta{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font:500 11.5px/1.3 var(--mono)}
+.track{touch-action:none}
 .cutBar{display:flex;flex-direction:column;gap:10px;background:var(--bg);border:1px solid rgba(255,59,78,.35);border-radius:13px;padding:12px}
 .cutBar .small{text-align:center}
+.lensRow{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.lens{width:46px;height:46px;border-radius:50%;border:1px solid var(--line2);background:var(--surface2);color:var(--fg);font:700 12.5px/1 var(--mono);cursor:pointer;padding:0}
+.lens.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.lens:disabled{opacity:.4}
+.seg.scope button{padding:8px 6px;font-size:13.5px}
+.seg.scope button.on{background:var(--fg);color:var(--bg)}
+.tlSel.snapL{border-left-color:#fff;box-shadow:-4px 0 10px -4px #fff}
+.tlSel.snapR{border-right-color:#fff;box-shadow:4px 0 10px -4px #fff}
+.tlSel.snapL.snapR{box-shadow:-4px 0 10px -4px #fff,4px 0 10px -4px #fff}
 
 /* buttons */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:1px solid var(--line2);border-radius:12px;padding:12px 12px;font-weight:700;font-size:14.5px;cursor:pointer;text-align:center;text-decoration:none;color:var(--fg);transition:transform .12s,background .15s}
@@ -253,20 +269,28 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
         <div class="cardHead"><span>Timeline</span><b id="tlTotal">0:00,0</b></div>
         <div class="tl">
           <div class="tlLabels"><span></span><span id="labA">Links</span><span id="labB">Rechts</span></div>
-          <div class="tlTracks" id="tlTracks">
-            <div class="ruler" id="tlRuler"></div>
-            <div class="track" id="trackA"></div>
-            <div class="track" id="trackB"></div>
-            <div class="tlSel" id="tlSel" hidden></div>
-            <div class="playhead" id="playhead" hidden></div>
+          <div class="tlScroll" id="tlScroll">
+            <div class="tlTracks" id="tlTracks">
+              <div class="ruler" id="tlRuler"></div>
+              <div class="track" id="trackA"></div>
+              <div class="track" id="trackB"></div>
+              <div class="tlSel" id="tlSel" hidden></div>
+              <div class="playhead" id="playhead" hidden></div>
+            </div>
           </div>
         </div>
-        <div class="tlMeta"><span id="tlCount">0 Aufnahmen</span><span>Tippen zum Springen</span></div>
+        <div class="tlMeta"><span id="tlCount">0 Aufnahmen</span>
+          <div class="zoomGrp"><button class="zBtn" id="tlZoomOut" type="button" aria-label="Timeline herauszoomen">−</button><span id="tlZoomVal">1×</span><button class="zBtn" id="tlZoomIn" type="button" aria-label="Timeline hineinzoomen">+</button></div>
+        </div>
         <button class="btn i-cut" id="btnCutMode" type="button">Pausen schneiden</button>
         <div class="cutBar" id="cutBar" hidden>
+          <div class="seg scope" id="cutScope">
+            <button type="button" data-scope="both">Beide Seiten</button>
+            <button type="button" data-scope="single">Einzeln</button>
+          </div>
           <div class="small" id="cutInfo">Zieh mit dem Finger auf der Zeitleiste über die Pause, die raus soll.</div>
           <div class="row">
-            <button class="btn primary i-cut" id="btnCutApply" type="button">Ausschneiden</button>
+            <button class="btn primary i-cut" id="btnCutApply" type="button">Schneiden</button>
             <button class="btn" id="btnCutDone" type="button">Fertig</button>
           </div>
         </div>
@@ -349,6 +373,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
     <div class="field"><label for="optDivider">Trennlinie</label><input type="checkbox" id="optDivider"></div>
 
     <h3>Kamera</h3>
+    <div class="field"><label>Objektiv</label><div class="lensRow" id="lensRow"></div></div>
     <div class="field"><label for="optCamera">Kamera</label>
       <select id="optCamera"><option value="">Automatisch</option></select></div>
     <div class="stack" id="zoomRow" hidden>
@@ -415,7 +440,7 @@ const CAM_TYPES = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=a
 
 // ---------- settings ----------
 const settings = { v: 5, layout: 'lr', look: 'room', split: 0.5, feather: 80, preroll: 2, mirror: true, divider: false,
-  facing: 'user', audio: 'speaker', res: '1080', fps: 30, cameraId: '', zoom: 1 };
+  facing: 'user', audio: 'speaker', res: '1080', fps: 30, cameraId: '', zoom: 1, cutScope: 'both' };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('kloncam.settings') || '{}')); } catch (e) {}
 if (settings.v < 2) Object.assign(settings, { look: 'room', split: 0.5, feather: 80, divider: false });
 if (settings.v < 4) { settings.audio = 'speaker'; delete settings.headphones; delete settings.micFilter; }
@@ -802,28 +827,64 @@ function layoutTimeline(t) {
   if (t != null) ph.style.left = pct(t);
   const sel = $('#tlSel'), r = state.cutMode && state.sel ? normSel(state.sel) : null;
   sel.hidden = !r;
-  if (r) { sel.style.left = pct(r.a); sel.style.width = pct(r.b - r.a); }
+  if (r) {
+    sel.style.left = pct(r.a); sel.style.width = pct(r.b - r.a);
+    const tr = r.side ? $('#track' + r.side) : null; // single-side cut: mark only that lane
+    sel.style.top = tr ? tr.offsetTop + 'px' : ''; sel.style.height = tr ? tr.offsetHeight + 'px' : ''; sel.style.bottom = tr ? 'auto' : '';
+    sel.classList.toggle('snapL', !!r.snapL); sel.classList.toggle('snapR', !!r.snapR);
+  }
   $('#tlTotal').textContent = fmt(total());
   drawRuler(scale);
   $('#tlCount').textContent = state.segs.length === 1 ? '1 Aufnahme' : `${state.segs.length} Aufnahmen`;
+  // zoomed in: keep the moving playhead in view while it plays or records
+  if (tlZoom > 1 && t != null && (state.mode === 'preview' || state.mode === 'rec') && !dragging) {
+    const sc = $('#tlScroll'), x = t / scale * tracksEl.offsetWidth;
+    if (x < sc.scrollLeft || x > sc.scrollLeft + sc.clientWidth - 20) sc.scrollLeft = x - sc.clientWidth * 0.25;
+  }
 }
-// time ruler above the tracks; rebuilt only when the visible range changes
-let rulerScale = 0;
+// time ruler above the tracks; rebuilt only when the visible range or the zoom changes
+let rulerKey = '';
 function drawRuler(scale) {
-  if (Math.abs(scale - rulerScale) < 0.05) return;
-  rulerScale = scale;
-  const step = [1, 2, 5, 10, 15, 30, 60, 120].find(s => scale / s <= 7) || 300;
+  const key = scale.toFixed(2) + '/' + tlZoom;
+  if (key === rulerKey) return;
+  rulerKey = key;
+  const span = scale / tlZoom; // seconds visible at once
+  const step = [0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120].find(s => span / s <= 6) || 300;
   const minor = step >= 10 ? step / 5 : step / 2, el = $('#tlRuler');
+  const label = t => step < 1 ? `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')},${Math.round((t % 1) * 10) % 10}` : `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`;
   el.textContent = '';
-  for (let t = 0; t <= scale; t += minor) {
-    const tk = document.createElement('div'), major = Math.abs(t / step - Math.round(t / step)) < 1e-6;
+  const n = Math.round(scale / minor);
+  for (let i = 0; i <= n; i++) {
+    const t = i * minor, tk = document.createElement('div'), major = Math.abs(t / step - Math.round(t / step)) < 1e-6;
     tk.className = 'tk' + (major ? ' major' : '');
     tk.style.left = (t / scale * 100) + '%';
-    if (major && t / scale < 0.92) { const b = document.createElement('b'); b.textContent = `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`; tk.appendChild(b); }
+    if (major && t / scale < 0.97) { const b = document.createElement('b'); b.textContent = label(t); tk.appendChild(b); }
     el.appendChild(tk);
   }
 }
-const normSel = s =>({ a: Math.max(0, Math.min(s.a, s.b)), b: Math.min(total(), Math.max(s.a, s.b)) });
+// timeline zoom: the track area grows wider inside a horizontal scroller
+const ZOOMS = [1, 2, 4, 8, 16, 32];
+let tlZoom = 1, zoomHinted = false;
+function setZoom(z) {
+  const sc = $('#tlScroll'), scale = tlScale(null);
+  // keep the cursor (or the marked range, or the current middle) in the same place on screen
+  const r = state.sel ? normSel(state.sel) : null;
+  const focus = state.cursor != null ? state.cursor : r ? (r.a + r.b) / 2 : (sc.scrollLeft + sc.clientWidth / 2) / tracksEl.offsetWidth * scale;
+  tlZoom = z;
+  tracksEl.style.width = (z * 100) + '%';
+  $('#tlZoomVal').textContent = z + '×';
+  $('#tlZoomOut').disabled = z === ZOOMS[0];
+  $('#tlZoomIn').disabled = z === ZOOMS[ZOOMS.length - 1];
+  $('.tl').classList.toggle('zoomed', z > 1);
+  layoutTimeline(state.mode === 'idle' ? state.cursor : null);
+  sc.scrollLeft = focus / scale * tracksEl.offsetWidth - sc.clientWidth / 2;
+  if (z > 1 && !zoomHinted) { zoomHinted = true; toast('Zum Verschieben oben auf der Zeitskala seitlich wischen.'); }
+}
+const normSel = s => {
+  const lo = s.a <= s.b;
+  return { a: Math.max(0, lo ? s.a : s.b), b: Math.min(total(), lo ? s.b : s.a), side: s.side || null,
+    snapL: lo ? s.snapA : s.snapB, snapR: lo ? s.snapB : s.snapA };
+};
 
 // scrubbing: tap or drag on the timeline to look at that moment; in cut mode the drag marks a range
 const tracksEl = $('#tlTracks');
@@ -840,23 +901,57 @@ async function setCursor(t) {
   while (seekWant != null) { const x = seekWant; seekWant = null; await positionAt(x); }
   seekBusy = false;
 }
+// cut edges snap onto clip boundaries (and the ends of the video), so a cut never nibbles at a neighbouring clip
+function snapTime(t, side) {
+  const r = tracksEl.getBoundingClientRect(), thr = 14 / r.width * tlScale(null), marks = [0, total()];
+  for (const s of state.segs) if (!side || s.side === side) marks.push(s.start, s.start + s.dur);
+  let best = null, bd = thr;
+  for (const x of marks) { const d = Math.abs(x - t); if (d < bd) { bd = d; best = x; } }
+  return best == null ? { t, snap: false } : { t: best, snap: true };
+}
+const laneAt = ev => ev.clientY >= $('#trackB').getBoundingClientRect().top - 3 ? 'B' : 'A';
 tracksEl.addEventListener('pointerdown', ev => {
   if (state.mode !== 'idle' || !state.segs.length) return;
+  if (tlZoom > 1 && ev.target.closest('.ruler')) return; // zoomed: the ruler is the handle for scrolling sideways
   dragging = true;
   try { tracksEl.setPointerCapture(ev.pointerId); } catch (e) {}
-  const t = tlTimeAt(ev);
-  if (state.cutMode) state.sel = { a: t, b: t };
+  let t = tlTimeAt(ev);
+  if (state.cutMode) {
+    const side = settings.cutScope === 'single' ? laneAt(ev) : null, p = snapTime(t, side);
+    t = p.t;
+    state.sel = { a: t, b: t, side, snapA: p.snap, snapB: p.snap };
+  }
   setCursor(t);
   updateUI();
 });
-tracksEl.addEventListener('pointermove', ev => {
-  if (!dragging) return;
-  const t = tlTimeAt(ev);
-  if (state.cutMode && state.sel) state.sel.b = t;
+function dragTo(ev) {
+  let t = tlTimeAt(ev);
+  if (state.cutMode && state.sel) {
+    const p = snapTime(t, state.sel.side);
+    t = p.t; state.sel.b = t; state.sel.snapB = p.snap;
+  }
   setCursor(t);
   layoutTimeline(t); updateCutInfo();
+}
+// while zoomed, holding the finger near an edge of the timeline keeps scrolling it
+let edgeEv = null, edgeRaf = 0;
+function edgeScroll() {
+  edgeRaf = 0;
+  if (!dragging || !edgeEv || tlZoom === 1) return;
+  const sc = $('#tlScroll'), r = sc.getBoundingClientRect(), x = edgeEv.clientX;
+  const dir = x > r.right - 28 ? 1 : x < r.left + 28 ? -1 : 0;
+  if (!dir) return;
+  sc.scrollLeft += dir * 8;
+  dragTo(edgeEv);
+  edgeRaf = requestAnimationFrame(edgeScroll);
+}
+tracksEl.addEventListener('pointermove', ev => {
+  if (!dragging) return;
+  dragTo(ev);
+  edgeEv = { clientX: ev.clientX, clientY: ev.clientY };
+  if (!edgeRaf) edgeRaf = requestAnimationFrame(edgeScroll);
 });
-const endDrag = () => { if (!dragging) return; dragging = false; updateUI(); };
+const endDrag = () => { if (!dragging) return; dragging = false; edgeEv = null; updateUI(); };
 tracksEl.addEventListener('pointerup', endDrag);
 tracksEl.addEventListener('pointercancel', endDrag);
 
@@ -868,11 +963,12 @@ function pushHistory() {
   if (history.length > 40) history.shift();
   future.length = 0;
 }
-async function cutRange(a, b) {
+// side = null cuts both sides; 'A' or 'B' cuts only that side and pulls its later clips forward
+async function cutRange(a, b, side) {
   const d = b - a, metas = [];
   for (const s of state.segs) {
     const m = metaOf(s), e = s.start + s.dur;
-    if (e <= a) { metas.push(m); continue; }
+    if ((side && s.side !== side) || e <= a) { metas.push(m); continue; }
     if (s.start >= b) { m.start -= d; metas.push(m); continue; }
     if (s.start < a && a - s.start >= 0.05) metas.push({ ...m, dur: a - s.start });
     if (e > b && e - b >= 0.05) metas.push({ ...m, id: uid(), start: a, offset: s.offset + (b - s.start), dur: e - b });
@@ -917,8 +1013,14 @@ async function redo() {
 // ---------- UI state ----------
 function updateCutInfo() {
   const info = $('#cutInfo'), r = state.sel ? normSel(state.sel) : null, len = r ? r.b - r.a : 0;
-  info.textContent = len >= 0.1 ? `${secs(len)} s markiert (${fmt(r.a)} bis ${fmt(r.b)}).` : 'Zieh mit dem Finger auf der Zeitleiste über die Pause, die raus soll.';
-  $('#btnCutApply').disabled = !(len >= 0.1) || state.mode !== 'idle';
+  const single = settings.cutScope === 'single';
+  document.querySelectorAll('#cutScope button').forEach(b => b.classList.toggle('on', b.dataset.scope === settings.cutScope));
+  info.textContent = len >= 0.05
+    ? `${len.toFixed(2).replace('.', ',')} s markiert ${r.side ? 'nur ' + sideName(r.side).toLowerCase() : 'auf beiden Seiten'} (${fmt(r.a)} bis ${fmt(r.b)})` +
+      (r.snapL || r.snapR ? ' · an Clip-Grenze eingerastet' : '') + '.'
+    : single ? 'Zieh auf der Spur der Seite, die du kürzen willst. Nur auf dieser Seite rücken die späteren Clips nach vorne.'
+      : 'Zieh auf der Zeitleiste über die Stelle, die raus soll. Die Ränder rasten an Clip-Grenzen ein.';
+  $('#btnCutApply').disabled = !(len >= 0.05) || state.mode !== 'idle';
 }
 function updateUI() {
   const m = state.mode, idle = m === 'idle', n = state.next, o = other(n);
@@ -968,7 +1070,9 @@ function updateUI() {
   $('#recTimer').hidden = m !== 'rec';
   $('#busy').hidden = m !== 'busy';
   let hint = '';
-  if (camOn && idle && state.cutMode) hint = 'Pausen schneiden: markier die Stelle auf der Zeitleiste. Sie wird bei beiden Seiten entfernt.';
+  if (camOn && idle && state.cutMode) hint = settings.cutScope === 'single'
+    ? 'Schneiden, einzeln: markier die Stelle auf der Spur einer Seite. Nur diese Seite wird gekürzt.'
+    : 'Schneiden, beide Seiten: markier die Stelle auf der Zeitleiste. Sie wird bei beiden Seiten entfernt.';
   else if (review) hint = `Ansicht bei ${fmt(state.cursor)}. „Vorschau“ spielt ab hier.`;
   else if (camOn && idle) {
     const cn = coverage(n), co = coverage(o);
@@ -1023,6 +1127,43 @@ async function openCamera() {
   camFacing = st.facingMode || (settings.cameraId ? (isFrontLabel(vt.label) ? 'user' : 'environment') : settings.facing);
   applyZoom();
   fillCameraList();
+  fillLensRow();
+}
+// iPhone-camera style lens buttons: 0.5× = ultra wide, 1× = main, 2× = main zoomed, Tele = telephoto lens
+async function fillLensRow() {
+  const row = $('#lensRow'), devs = await videoInputs();
+  const vt = camStream && camStream.getVideoTracks()[0], caps = vt && vt.getCapabilities ? vt.getCapabilities() : {};
+  const opts = [];
+  if (camFacing === 'user') {
+    opts.push({ label: '1×', id: settings.cameraId, zoom: 1 });
+    if (caps.zoom && caps.zoom.max >= 2) opts.push({ label: '2×', id: settings.cameraId, zoom: 2 });
+  } else {
+    const back = devs.filter(d => d.label && !isFrontLabel(d.label));
+    const uw = back.find(d => /ultra/i.test(d.label)), tele = back.find(d => /tele/i.test(d.label));
+    const main = back.find(d => !/ultra|tele|dual|triple|duo|weitwinkel/i.test(d.label));
+    const mainId = main ? main.deviceId : settings.cameraId;
+    if (uw) opts.push({ label: '0,5×', id: uw.deviceId, zoom: 1 });
+    opts.push({ label: '1×', id: mainId, zoom: 1 }, { label: '2×', id: mainId, zoom: 2 });
+    if (tele) opts.push({ label: 'Tele', id: tele.deviceId, zoom: 1 });
+  }
+  row.textContent = '';
+  for (const o of opts) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'lens'; b.textContent = o.label;
+    b.classList.toggle('on', (o.id || '') === (settings.cameraId || '') && Math.abs((settings.zoom || 1) - o.zoom) < 0.05);
+    b.addEventListener('click', () => chooseLens(o));
+    row.appendChild(b);
+  }
+}
+async function chooseLens(o) {
+  if (camOn && state.mode !== 'idle') return;
+  const switching = (o.id || '') !== (settings.cameraId || '');
+  settings.cameraId = o.id || ''; settings.zoom = o.zoom; saveSettings();
+  if (switching) await reopenCamera('Dieses Objektiv ließ sich nicht öffnen.');
+  else applyZoom();
+  const vt = camStream && camStream.getVideoTracks()[0], caps = vt && vt.getCapabilities ? vt.getCapabilities() : {};
+  if (o.zoom > 1 && !caps.zoom) toast('Zoom unterstützt der Browser bei dieser Kamera nicht.');
+  fillLensRow();
 }
 function applyZoom() {
   const vt = camStream && camStream.getVideoTracks()[0];
@@ -1468,6 +1609,8 @@ document.querySelectorAll('#sidePick button').forEach(b => b.addEventListener('c
 }));
 $('#btnLive').addEventListener('click', () => { if (state.mode !== 'idle') return; state.cursor = null; goIdle(); });
 $('#btnUndo').addEventListener('click', undo);
+$('#tlZoomIn').addEventListener('click', () => { const i = ZOOMS.indexOf(tlZoom); if (i < ZOOMS.length - 1) setZoom(ZOOMS[i + 1]); });
+$('#tlZoomOut').addEventListener('click', () => { const i = ZOOMS.indexOf(tlZoom); if (i > 0) setZoom(ZOOMS[i - 1]); });
 $('#btnRedo').addEventListener('click', redo);
 $('#btnPreview').addEventListener('click', () => {
   if (state.mode === 'idle') startPreview(); else if (state.mode === 'preview') stopPreview();
@@ -1476,16 +1619,20 @@ $('#btnCutMode').addEventListener('click', () => { if (state.mode !== 'idle') re
 $('#btnCutDone').addEventListener('click', () => { state.cutMode = false; state.sel = null; updateUI(); });
 $('#btnCutApply').addEventListener('click', async () => {
   if (state.mode !== 'idle' || !state.sel) return;
-  const r = normSel(state.sel); if (r.b - r.a < 0.1) return;
+  const r = normSel(state.sel); if (r.b - r.a < 0.05) return;
   state.mode = 'busy'; updateUI();
-  await cutRange(r.a, r.b);
+  await cutRange(r.a, r.b, r.side);
   state.sel = null;
   state.cursor = Math.max(0, r.a - 1);
   dropUnusedMedia();
   await saveAll();
   await goIdle();
-  toast(`${secs(r.b - r.a)} s herausgeschnitten. „Vorschau“ zeigt die Stelle.`);
+  toast(`${(r.b - r.a).toFixed(2).replace('.', ',')} s ${r.side ? 'bei ' + sideName(r.side).toLowerCase() : 'bei beiden Seiten'} herausgeschnitten.`);
 });
+document.querySelectorAll('#cutScope button').forEach(b => b.addEventListener('click', () => {
+  settings.cutScope = b.dataset.scope; saveSettings();
+  state.sel = null; updateUI();
+}));
 $('#btnExport').addEventListener('click', () => { if (state.mode === 'idle' && state.segs.length) startExport(); });
 SIDES.forEach(s => $('#btnOnly' + s).addEventListener('click', () => { if (state.mode === 'idle' && state.segs.length) startExport(s); }));
 $('#btnExpCancel').addEventListener('click', () => {
@@ -1529,7 +1676,7 @@ function openSettings() {
   $('#optDivider').checked = settings.divider;
   $('#optRes').value = settings.res;
   $('#optFps').value = String(settings.fps);
-  if (camOn) fillCameraList();
+  if (camOn) { fillCameraList(); fillLensRow(); }
   $('#settingsSheet').hidden = false;
 }
 $('#btnSettings').addEventListener('click', openSettings);
@@ -1556,6 +1703,7 @@ $('#optZoom').addEventListener('input', e => {
   $('#zoomVal').textContent = secs(settings.zoom) + '×';
   const vt = camStream && camStream.getVideoTracks()[0];
   if (vt) vt.applyConstraints({ advanced: [{ zoom: settings.zoom }] }).catch(() => {});
+  fillLensRow();
 });
 $('#optRes').addEventListener('change', e => { settings.res = e.target.value; saveSettings(); updateUI(); reopenCamera('Kamera ließ sich nicht neu starten.'); });
 $('#optFps').addEventListener('change', e => { settings.fps = +e.target.value; saveSettings(); reopenCamera('Kamera ließ sich nicht neu starten.'); });
@@ -1565,6 +1713,7 @@ $('#settingsSheet').addEventListener('click', e => { if (e.target.id === 'settin
 // first paint: show the empty split and how many takes are waiting
 renderAt(0, null, Infinity, false);
 updateUI();
+setZoom(1);
 loadStore().then(({ segs }) => {
   if (segs.length) { const n = $('#savedNote'); n.textContent = `${segs.length} gespeicherte Aufnahmen warten und werden beim Start geladen.`; n.hidden = false; }
 });
