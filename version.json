@@ -1,12 +1,11 @@
 {
-  "version": "1.2.0",
-  "build": 2026110202,
+  "version": "1.2.1",
+  "build": 2026110203,
   "date": "02.11.2026",
   "changes": [
-    "Update-Popup: Nach einer neuen Version siehst du einmalig, was sich geändert hat.",
-    "Versionsnummer auf dem Startbildschirm und in der App. Antippen öffnet die Änderungen erneut.",
-    "Update-Prüfung beim Öffnen und Zurückkehren zur App; neue Versionen lassen sich gezielt neu laden.",
-    "Kameravorschau wird beim Qualitätswechsel frisch aufgebaut und auf laufende Bilder geprüft.",
-    "Liefert die Kamera bei 60 fps keine Bilder, versucht die App eine funktionierende Aufnahme-Einstellung. Kamera- und Export-Bildrate werden getrennt angezeigt."
+    "60-fps-Verarbeitung für Safari korrigiert: Aufnahmen werden mit aktuellem MP4-Parser vollständig mit Bild und Ton gelesen.",
+    "Safari-spezifische Tonformat-Angaben beim MP4-Export werden korrigiert, damit das fertige Video abspielbar bleibt.",
+    "Die App wartet auf den vollständigen Dateiabschluss und pausiert die Kamera kurz beim Vorbereiten einer Aufnahme.",
+    "Falls eine Aufnahme trotzdem nicht eingelesen werden kann, bleibt ihr Original zur Wiederherstellung erhalten. Original und genaue Fehlerdetails lassen sich sichern."
   ]
 }

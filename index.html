@@ -231,7 +231,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
 <body>
 <div id="app">
   <header>
-    <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brandWords"><span>KlonCam</span><button class="versionTag" data-app-version type="button" aria-label="Geladene Version und Änderungen anzeigen">Version 1.2.0</button></span></div>
+    <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brandWords"><span>KlonCam</span><button class="versionTag" data-app-version type="button" aria-label="Geladene Version und Änderungen anzeigen">Version 1.2.1</button></span></div>
     <div class="hdrRight">
       <button class="qBadge" id="qBadge" type="button" aria-label="Qualität einstellen">1080p · 30</button>
       <button class="iconBtn ic i-sliders" id="btnSettings" type="button" aria-label="Einstellungen"></button>
@@ -273,6 +273,16 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
         <div class="small" id="cameraStatus" style="text-align:center" aria-live="polite"></div>
         <div class="note" id="cameraNotice" hidden></div>
         <button class="btn" id="btnRestartCamera" type="button" hidden>Kamera neu starten</button>
+      </div>
+
+      <div class="card" id="recoveryCard" hidden>
+        <div class="cardHead"><span>Aufnahme wiederherstellen</span><b id="recoveryCount"></b></div>
+        <select id="recoveryPick" aria-label="Gesicherte Originalaufnahme wählen"></select>
+        <p class="small" id="recoveryInfo" style="margin:0"></p>
+        <button class="btn primary" id="btnRecoveryRetry" type="button">Aufnahme erneut einlesen</button>
+        <div class="row"><a class="btn i-export" id="btnRecoveryDownload" download>Original sichern</a>
+          <button class="btn" id="btnRecoveryDetails" type="button">Fehlerdetails kopieren</button></div>
+        <textarea id="recoveryDetails" class="small" readonly hidden aria-label="Fehlerdetails zum Kopieren" style="width:100%;min-height:140px;background:var(--bg);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:8px"></textarea>
       </div>
 
       <div class="card">
@@ -337,7 +347,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
 
 <div id="startCard">
   <div class="startInner">
-          <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brandWords"><span>KlonCam</span><button class="versionTag" data-app-version type="button" aria-label="Geladene Version und Änderungen anzeigen">Version 1.2.0</button></span></div>
+          <div class="brand"><span class="mark" aria-hidden="true"></span><span class="brandWords"><span>KlonCam</span><button class="versionTag" data-app-version type="button" aria-label="Geladene Version und Änderungen anzeigen">Version 1.2.1</button></span></div>
           <div class="eyebrow">Splitscreen-Studio</div>
           <h1>Mit dir selbst reden, ohne Zählen und Raten</h1>
           <ol>
@@ -428,7 +438,7 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
 
 <div class="sheetBg" id="updateSheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="releaseTitle" aria-describedby="releaseStatus">
-    <span id="releaseVersion">Version 1.2.0</span>
+    <span id="releaseVersion">Version 1.2.1</span>
     <h2 id="releaseTitle">Update übernommen</h2>
     <p class="small" id="releaseStatus" style="margin:0"></p>
     <ul id="releaseChanges"></ul>
@@ -440,13 +450,13 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
 <div id="toast" hidden></div>
 <div id="mediaBox" aria-hidden="true"><video id="cam" playsinline webkit-playsinline muted autoplay></video></div>
 
-<script src="lib/mp4box.all.min.js"></script>
+<script src="lib/mp4box-2.5.0.js"></script>
 <script src="lib/mp4-muxer.min.js"></script>
 <script>
 (() => {
 'use strict';
 // This embedded release identifies the code actually loaded, even if version.json is newer.
-const APP_RELEASE = {"version": "1.2.0", "build": 2026110202, "date": "02.11.2026", "changes": ["Update-Popup: Nach einer neuen Version siehst du einmalig, was sich geändert hat.", "Versionsnummer auf dem Startbildschirm und in der App. Antippen öffnet die Änderungen erneut.", "Update-Prüfung beim Öffnen und Zurückkehren zur App; neue Versionen lassen sich gezielt neu laden.", "Kameravorschau wird beim Qualitätswechsel frisch aufgebaut und auf laufende Bilder geprüft.", "Liefert die Kamera bei 60 fps keine Bilder, versucht die App eine funktionierende Aufnahme-Einstellung. Kamera- und Export-Bildrate werden getrennt angezeigt."]};
+const APP_RELEASE = {"version": "1.2.1", "build": 2026110203, "date": "02.11.2026", "changes": ["60-fps-Verarbeitung für Safari korrigiert: Aufnahmen werden mit aktuellem MP4-Parser vollständig mit Bild und Ton gelesen.", "Safari-spezifische Tonformat-Angaben beim MP4-Export werden korrigiert, damit das fertige Video abspielbar bleibt.", "Die App wartet auf den vollständigen Dateiabschluss und pausiert die Kamera kurz beim Vorbereiten einer Aufnahme.", "Falls eine Aufnahme trotzdem nicht eingelesen werden kann, bleibt ihr Original zur Wiederherstellung erhalten. Original und genaue Fehlerdetails lassen sich sichern."]};
 const SIDES = ['A', 'B'];
 const $ = s => document.querySelector(s);
 const stage = $('#stage');
@@ -464,7 +474,7 @@ const tick = (() => {
 
 // Let the recorder choose an H.264 level matching the actual resolution/rate.
 // Forcing Baseline Level 3.1 here can break 1080p, 4K and 60 fps on iOS.
-const CAM_TYPES = ['video/mp4', 'video/mp4;codecs=avc1,mp4a.40.2',
+const CAM_TYPES = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4',
   'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 
 // ---------- settings ----------
@@ -496,6 +506,7 @@ const resLabel = () => settings.res === '2160' ? '4K' : settings.res + 'p';
 // Several segs can share one recording (blobId) after a cut; the recording itself lives in `media`.
 const state = { segs: [], next: 'A', mode: 'off', cursor: null, cutMode: false, sel: null }; // mode: off | idle | countdown | rec | busy | preview | export
 const media = new Map();   // blobId -> {blob, mime, url, buffer, duration, saved, demux}
+const recoveries = new Map(); // original recordings awaiting recovery, also persisted in the blobs store
 const history = [];        // undo snapshots: {segs: [meta], next}
 const future = [];         // redo snapshots, filled by undo()
 let ac = null, camStream = null, camOn = false, camFacing = 'user', play = null, recCtl = null, exportCtl = null;
@@ -622,36 +633,81 @@ async function seekTo(v, t) {
   await p;
 }
 function decode(buf) { return ac.decodeAudioData(buf); }
-async function prepMedia(blobId, blob, mime) {
+async function prepMedia(blobId, blob, mime, preparedAudio = null) {
   let m = media.get(blobId);
   if (m && m.url) return m;
   m = m || { blob, mime, saved: false };
   m.url = URL.createObjectURL(m.blob);
-  try { m.buffer = await decode(await m.blob.arrayBuffer()); } catch (e) { m.buffer = null; }
+  m.buffer = null;
+  try {
+    let source = preparedAudio;
+    if (!source) {
+      try { m.buffer = await decode(await m.blob.arrayBuffer()); }
+      catch (e) { m.audioError = String(e && e.message || e); }
+      if (!m.buffer && m.blob.type.includes('mp4')) source = (await remuxRecording(m.blob, true)).audio;
+    }
+    if (source && source.blob) {
+      let audio = await decode(await source.blob.arrayBuffer());
+      const padding = Math.max(0, Math.round(source.startTime * audio.sampleRate));
+      if (padding) {
+        const aligned = ac.createBuffer(audio.numberOfChannels, audio.length + padding, audio.sampleRate);
+        for (let ch = 0; ch < audio.numberOfChannels; ch++) aligned.getChannelData(ch).set(audio.getChannelData(ch), padding);
+        audio = aligned;
+      }
+      m.buffer = audio; delete m.audioError;
+    }
+  } catch (e) { m.audioError = String(e && e.message || e); }
   media.set(blobId, m);
   return m;
 }
+function mediaReadError(v, stage) {
+  const codes = { 1: 'Laden abgebrochen', 2: 'Dateizugriff fehlgeschlagen', 3: 'Videodecoder fehlgeschlagen', 4: 'Videoformat nicht unterstützt' };
+  const code = v.error ? v.error.code : 0;
+  return new Error(`${stage}: ${codes[code] || 'kein Videobild angekommen'} (MediaError ${code}, readyState ${v.readyState}, networkState ${v.networkState})`);
+}
+function waitVideoReady(v, ms = 12000) {
+  return new Promise((resolve, reject) => {
+    let timer;
+    const clean = () => { clearTimeout(timer); for (const ev of ['loadeddata', 'canplay', 'error']) v.removeEventListener(ev, inspect); };
+    const inspect = () => {
+      if (v.error) { clean(); reject(mediaReadError(v, 'Video laden')); }
+      else if (v.readyState >= 2 && v.videoWidth) { clean(); resolve(); }
+    };
+    for (const ev of ['loadeddata', 'canplay', 'error']) v.addEventListener(ev, inspect);
+    timer = setTimeout(() => { clean(); reject(mediaReadError(v, 'Zeitüberschreitung beim Laden')); }, ms);
+    inspect();
+  });
+}
 async function makeSegVideo(seg) {
   const m = media.get(seg.blobId);
+  if (!m || !m.url) throw new Error('Originaldatei fehlt');
+  disposeSegVideo(seg);
   const v = document.createElement('video');
-  v.muted = true; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto';
-  v.src = m.url;
-  mediaBox.appendChild(v);
-  seg.video = v;
-  if (v.readyState < 2 && !await waitEvent(v, 'loadeddata', 8000)) throw new Error('Die Aufnahme enthält kein lesbares Videobild');
-  if (!v.videoWidth || v.error) throw new Error('Die Aufnahme enthält kein lesbares Videobild');
-  if (!isFinite(v.duration)) { // WebM from MediaRecorder has no duration until scanned
-    const p = waitEvent(v, 'durationchange', 4000); v.currentTime = 1e7; await p;
-  }
-  if (!m.duration) m.duration = isFinite(v.duration) ? v.duration : (m.buffer ? m.buffer.duration : Infinity);
-  await seekTo(v, seg.offset);
-  return seg;
+  v.muted = true; v.defaultMuted = true; v.playsInline = true; v.preload = 'auto';
+  v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.setAttribute('webkit-playsinline', '');
+  mediaBox.appendChild(v); seg.video = v;
+  const ready = waitVideoReady(v);
+  v.src = m.url; v.load();
+  // Mobile WebKit may never preload a paused blob video, even with preload=auto.
+  // A muted inline play request starts its decoder; pause again once a frame exists.
+  v.play().catch(() => {});
+  try {
+    await ready; v.pause();
+    if (!isFinite(v.duration)) {
+      const scanned = waitEvent(v, 'durationchange', 4000); v.currentTime = 1e7; await scanned;
+    }
+    if (!m.duration) m.duration = isFinite(v.duration) ? v.duration : (m.buffer ? m.buffer.duration : Infinity);
+    if (Number.isFinite(m.duration) && seg.offset >= m.duration) throw new Error('Die Aufnahme endet vor dem Start des gewählten Ausschnitts');
+    await seekTo(v, seg.offset);
+    if (v.error || v.readyState < 2) throw mediaReadError(v, 'Video positionieren');
+    return seg;
+  } catch (e) { v.pause(); throw e; }
 }
 function disposeSegVideo(seg) {
   if (seg.video) { seg.video.removeAttribute('src'); seg.video.load(); seg.video.remove(); seg.video = null; }
 }
 function referencedBlobs(withHistory) {
-  const ids = new Set(state.segs.map(s => s.blobId));
+  const ids = new Set([...state.segs.map(s => s.blobId), ...recoveries.keys()]);
   if (withHistory) [...history, ...future].forEach(h => h.segs.forEach(s => ids.add(s.blobId)));
   return ids;
 }
@@ -667,6 +723,7 @@ async function setSegs(metas) {
 }
 function positionAt(t) {
   return Promise.all(state.segs.map(s => {
+    if (!s.video || s.video.error || s.video.readyState < 2) return Promise.resolve();
     s.video.pause();
     const local = t - s.start;
     return seekTo(s.video, local >= s.dur ? s.offset + Math.max(0, s.dur - 0.05) : s.offset + Math.max(0, local));
@@ -771,12 +828,13 @@ function stopPlayback() {
   if (!play) return;
   for (const s of play.srcs) { try { s.stop(); } catch (e) {} }
   if (play.out) try { play.out.disconnect(); } catch (e) {}
-  state.segs.forEach(s => s.video.pause());
+  state.segs.forEach(s => { if (s.video) s.video.pause(); });
   play = null;
 }
 function syncVideos(t, running) {
   for (const s of state.segs) {
     const v = s.video, local = t - s.start;
+    if (!v || v.error || v.readyState < 2) continue;
     if (running && local >= 0 && local < s.dur) {
       const expect = s.offset + local;
       if (v.paused) {
@@ -1120,6 +1178,7 @@ function updateUI() {
     hint = `Aufnahme ${sideName(recCtl.side).toLowerCase()} läuft. Tippe auf Stopp, wenn du fertig bist.`;
   }
   $('#hint').textContent = hint;
+  updateRecoveryUI();
   buildTimeline();
 }
 let toastTimer;
@@ -1314,6 +1373,8 @@ async function fillCameraList() {
   sel.value = list.some(d => d.deviceId === settings.cameraId) ? settings.cameraId : '';
 }
 async function enable() {
+  if ($('#btnStart').disabled) return;
+  $('#btnStart').disabled = true;
   const err = $('#startErr'); err.hidden = true;
   try {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
@@ -1323,14 +1384,13 @@ async function enable() {
     ac.resume().catch(() => {});
     // ask the browser not to evict the stored takes when space runs low
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
-    await openCamera();
-    camOn = true;
-    $('#startCard').hidden = true;
     if (!restored) {
       restored = true;
       state.mode = 'busy'; updateUI();
       await restore();
     }
+    await openCamera(); camOn = true;
+    $('#startCard').hidden = true;
     await goIdle();
     requestWake();
   } catch (e) {
@@ -1338,7 +1398,7 @@ async function enable() {
       ? 'Kamera oder Mikrofon wurde nicht erlaubt. Erlaube beides in den Browser-Einstellungen für diese Seite und lade neu.'
       : (e.message || String(e));
     err.hidden = false;
-  }
+  } finally { $('#btnStart').disabled = false; }
 }
 async function goIdle() {
   state.mode = 'idle';
@@ -1400,6 +1460,8 @@ async function startRecording() {
     if (state.mode === 'rec') stopRecording();
   };
   try {
+    // Keep chunks small for long takes, but consume the complete recording only
+    // after stop. MP4Box 2.5 handles Safari's subsequent fragments correctly.
     rec.start(500);
     await startPlayback({ from: T0, live: side, liveFrom: tX, clock: audioOk ? 'audio' : 'perf' });
     if (r.error) throw r.error;
@@ -1415,40 +1477,149 @@ async function startRecording() {
   updateUI();
   requestWake();
 }
+const RECORDER_STOP_TIMEOUT = 30000;
+function recordedType(r) {
+  // WebKit can report a low/default AVC level in mimeType while encoding a different level.
+  // A Blob URL must advertise the container, letting the file's real codec headers decide.
+  return (r.rec.mimeType || r.chunks.find(c => c.type)?.type || r.mime || 'video/mp4').split(';')[0].trim();
+}
+function recordingBlob(r) { return new Blob(r.chunks, { type: recordedType(r) }); }
+async function finishRecorder(r) {
+  let timer;
+  const stopped = new Promise((resolve, reject) => {
+    r.rec.addEventListener('stop', resolve, { once: true });
+    try { r.rec.stop(); } catch (e) { reject(e); }
+  });
+  r.finished = stopped;
+  try {
+    await Promise.race([stopped, new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Recorder hat den Dateiabschluss nicht innerhalb von 30 Sekunden bestätigt')), RECORDER_STOP_TIMEOUT);
+    })]);
+  } finally { clearTimeout(timer); }
+  if (r.error) throw r.error;
+}
+function recordingDiagnostic(error, r, blob, extra = {}) {
+  return { version: APP_RELEASE.version, stage: extra.stage || 'Video einlesen', error: String(error && error.message || error),
+    errorName: error && error.name || '', mime: blob.type, recorderMime: r.rec && r.rec.mimeType || '', bytes: blob.size,
+    camera: r.camera || $('#cameraStatus').textContent, targetFps: settings.fps, targetResolution: settings.res,
+    browser: navigator.userAgent, standalone: !!navigator.standalone, ...extra };
+}
+async function persistRecovery(item) {
+  item.saved = false;
+  const bytes = await item.blob.arrayBuffer();
+  const db = await idb();
+  try {
+    const tx = db.transaction('blobs', 'readwrite');
+    tx.objectStore('blobs').put({ id: item.meta.blobId, bytes, mime: item.blob.type,
+      recovery: { meta: item.meta, diagnostic: item.diagnostic, created: item.created } });
+    await txDone(tx); item.saved = true;
+  } finally { db.close(); }
+}
+async function keepRecording(meta, blob, diagnostic) {
+  if (!blob.size) return null;
+  const item = { meta: { ...meta }, blob, diagnostic, created: new Date().toISOString(), saved: false, url: URL.createObjectURL(blob) };
+  recoveries.set(meta.blobId, item);
+  try { await persistRecovery(item); } catch (e) { item.diagnostic.storageError = String(e && e.message || e || 'Browser-Speichertransaktion fehlgeschlagen'); }
+  updateRecoveryUI(); return item;
+}
+async function resumeCaptureAfterRead(resume) {
+  // Existing takes were detached to free decoder slots. Restore them before restarting capture.
+  for (const s of state.segs) if (!s.video || s.video.error || s.video.readyState < 2) {
+    try { await makeSegVideo(s); } catch (e) { console.warn('Take preview restore failed', e); }
+  }
+  if (resume) {
+    try { await openCamera(); } catch (e) { toast('Kamera bitte erneut starten. Die Aufnahme bleibt gesichert.'); }
+  }
+  await goIdle();
+}
+async function readRecording(seg, blob, diagnostic) {
+  let preferred = blob, preparedAudio = null;
+  // Native Safari recordings are fragmented MP4s whose movie/track duration may be zero.
+  // Normalize first, before HTML video and decodeAudioData see those headers.
+  if (blob.type.includes('mp4')) {
+    $('#busy').textContent = 'Videodatei wird vorbereitet …';
+    try {
+      const repaired = await remuxRecording(blob);
+      diagnostic.repair = repaired.stats; preferred = repaired.blob; preparedAudio = repaired.audio;
+    } catch (e) { diagnostic.containerRepairError = String(e.message || e); }
+  }
+  const m = await prepMedia(seg.blobId, preferred, preferred.type, preparedAudio);
+  if (m.audioError) diagnostic.audioError = m.audioError;
+  try {
+    if (preparedAudio && !m.buffer) throw new Error('Tonspur konnte nicht gelesen werden: ' + (m.audioError || 'keine Audiodaten'));
+    await makeSegVideo(seg); return m;
+  }
+  catch (first) {
+    diagnostic.firstReadError = String(first.message || first);
+    disposeSegVideo(seg);
+    // If rewriting failed, the complete original may still work in this browser.
+    // Keep it as a real fallback, never silently accept an empty video.
+    if (preferred === blob) throw first;
+    if (m.url) URL.revokeObjectURL(m.url); media.delete(seg.blobId);
+    const original = await prepMedia(seg.blobId, blob, blob.type);
+    if (preparedAudio && !original.buffer) throw new Error('Tonspur konnte nicht gelesen werden: ' + (original.audioError || 'kein Audio'));
+    await makeSegVideo(seg);
+    return original;
+  }
+}
 async function stopRecording() {
   const r = recCtl; if (!r) return;
   const tStop = r.T0 + (r.now() - r.C0);
-  stopPlayback();
-  recCtl = null;
-  state.mode = 'busy'; updateUI();
-  const stopped = new Promise(res => { r.rec.onstop = res; });
-  try { r.rec.stop(); } catch (e) {}
-  await Promise.race([stopped, sleep(4000)]);
-  if (r.error) { toast('Kameraaufnahme fehlgeschlagen. Frühere Aufnahmen bleiben erhalten.'); await goIdle(); return; }
-  const dur = tStop - r.tX;
-  if (dur < 0.3) { toast('Zu kurz, nichts gespeichert.'); await goIdle(); return; }
-  if (!r.chunks.length) { toast('Die Kamera hat nichts geliefert. Versuch es noch mal.'); await goIdle(); return; }
-  const blobId = uid(), type = r.mime || 'video/mp4';
-  const seg = { id: uid(), blobId, side: r.side, start: r.tX, dur, offset: Math.max(0, r.C0 + (r.tX - r.T0) - r.Rs), mirror: r.mirror };
-  try {
-    const m = await prepMedia(blobId, new Blob(r.chunks, { type }), type);
-    await makeSegVideo(seg);
-    if (m.duration < seg.offset + seg.dur) seg.dur = Math.max(0.1, m.duration - seg.offset);
-  } catch (e) {
-    console.error('Recording could not be read', { version: APP_RELEASE.version, mime: type, camera: $('#cameraStatus').textContent, error: e });
-    disposeSegVideo(seg);
-    const failed = media.get(blobId); if (failed && failed.url) URL.revokeObjectURL(failed.url);
-    media.delete(blobId);
-    $('#cameraNotice').hidden = false; $('#btnRestartCamera').hidden = false;
-    $('#cameraNotice').textContent = 'Die neue Aufnahme konnte nicht gelesen werden. Starte die Kamera neu oder versuche 1080p mit 30 fps. Deine bisherigen Aufnahmen bleiben erhalten.';
-    toast('Die Aufnahme konnte nicht gelesen werden.'); await goIdle(); return;
+  r.camera = $('#cameraStatus').textContent;
+  stopPlayback(); recCtl = null;
+  state.mode = 'busy'; updateUI(); $('#busy').textContent = 'Aufnahme wird vollständig abgeschlossen …';
+  const meta = { id: uid(), blobId: uid(), side: r.side, start: r.tX, dur: Math.max(0, tStop - r.tX),
+    offset: Math.max(0, r.C0 + (r.tX - r.T0) - r.Rs), mirror: r.mirror };
+  try { await finishRecorder(r); }
+  catch (e) {
+    const blob = recordingBlob(r), details = recordingDiagnostic(e, r, blob, { stage: 'Recorder abschließen' });
+    const item = await keepRecording(meta, blob, details);
+    // A late stop must update the retained original with its final chunks, never discard them.
+    if (r.finished) r.finished.then(async () => {
+      if (!item || !recoveries.has(meta.blobId)) return;
+      const complete = recordingBlob(r); if (!complete.size) return;
+      URL.revokeObjectURL(item.url); item.blob = complete; item.url = URL.createObjectURL(complete);
+      item.diagnostic.bytes = complete.size; item.diagnostic.finalizedLate = true;
+      try { await persistRecovery(item); } catch (err) { console.warn('Late recording save failed', err); }
+      updateRecoveryUI();
+    }).catch(() => {});
+    toast(item ? 'Dateiabschluss fehlgeschlagen. Original zur Wiederherstellung gesichert.' : 'Die Kamera hat keine Videodaten geliefert.');
+    await goIdle(); return;
   }
-  pushHistory();
-  history[history.length - 1].next = r.side;
-  state.segs.push(seg);
-  state.next = other(r.side);
-  await saveAll();
-  await goIdle();
+  if (meta.dur < 0.3) { toast('Zu kurz, nichts gespeichert.'); await goIdle(); return; }
+  const original = recordingBlob(r);
+  if (!original.size) { toast('Die Kamera hat keine Videodaten geliefert.'); await goIdle(); return; }
+  const resume = camOn, details = recordingDiagnostic('', r, original);
+  detachCamera(); state.segs.forEach(disposeSegVideo);
+  await sleep(150);
+  $('#busy').textContent = 'Aufnahme wird eingelesen …';
+  let failed = false, prepared = null;
+  try {
+    prepared = await readRecording(meta, original, details);
+    if (prepared.duration < meta.offset + meta.dur) meta.dur = Math.max(0.1, prepared.duration - meta.offset);
+  } catch (e) {
+    failed = true; console.error('Recording read failed', e);
+    details.error = String(e && e.message || e);
+    disposeSegVideo(meta);
+    const m = media.get(meta.blobId); if (m && m.url) URL.revokeObjectURL(m.url);
+    media.delete(meta.blobId);
+    await keepRecording(metaOf(meta), original, details);
+  }
+  try {
+    if (prepared) {
+      pushHistory(); history[history.length - 1].next = r.side;
+      state.segs.push(meta); state.next = other(r.side);
+      if (!await saveAll()) {
+        const item = await keepRecording(metaOf(meta), original, { ...details, stage: 'Aufnahme speichern', error: lastSaveError || 'Timeline konnte nicht gesichert werden' });
+        if (item) item.alreadyInTimeline = true;
+      }
+    }
+  } finally { await resumeCaptureAfterRead(resume); }
+  if (failed) {
+    $('#cameraNotice').hidden = false;
+    $('#cameraNotice').textContent = 'Die Aufnahme wurde als Original zur Wiederherstellung behalten. Du kannst sie unten erneut einlesen oder sichern. Die genauen Fehlerdetails helfen bei der Reparatur.';
+    toast('Originalaufnahme behalten. Siehe „Aufnahme wiederherstellen“.');
+  }
 }
 
 // ---------- preview ----------
@@ -1496,7 +1667,7 @@ function demux(ab) {
     let description;
     for (const entry of trak.mdia.minf.stbl.stsd.entries) {
       const box = entry.avcC || entry.hvcC || entry.vpcC || entry.av1C;
-      if (box) { const DS = MP4Box.DataStream || window.DataStream, ds = new DS(undefined, 0, DS.BIG_ENDIAN); box.write(ds); description = new Uint8Array(ds.buffer, 8); break; }
+      if (box) { const DS = MP4Box.DataStream || window.DataStream, ds = new DS(undefined, 0, MP4Box.Endianness?.BIG_ENDIAN ?? DS.BIG_ENDIAN); box.write(ds); description = new Uint8Array(ds.buffer, 8); break; }
     }
     const mx = tr.matrix || [65536, 0, 0, 0, 65536, 0, 0, 0, 1073741824];
     const rot = ((Math.round(Math.atan2(mx[1], mx[0]) * 180 / Math.PI) % 360) + 360) % 360;
@@ -1504,6 +1675,90 @@ function demux(ab) {
     file.stop();
     resolve({ samples, rot, t0, config: { codec: tr.codec, codedWidth: tr.video ? tr.video.width : tr.track_width, codedHeight: tr.video ? tr.video.height : tr.track_height, description } });
   });
+}
+// Rebuild a finalized native MP4 with a regular fast-start header. Keep compressed video,
+// audio, rotation, decode order and A/V offsets; this is not a frame-rate conversion.
+async function remuxRecording(blob, audioOnly = false) {
+  if (!window.MP4Box || !window.Mp4Muxer) throw new Error('MP4-Reparatur ist nicht verfügbar');
+  const file = MP4Box.createFile(), tracks = new Map();
+  let info = null, parseError = null;
+  file.onError = e => { parseError = new Error('MP4-Struktur: ' + e); };
+  file.onReady = value => {
+    info = value;
+    for (const tr of [...value.videoTracks.slice(0, 1), ...value.audioTracks.slice(0, 1)]) {
+      tracks.set(tr.id, { info: tr, samples: [] });
+      file.setExtractionOptions(tr.id, null, { nbSamples: 500 });
+    }
+    file.start();
+  };
+  file.onSamples = (id, user, samples) => { const tr = tracks.get(id); if (tr) tr.samples.push(...samples); };
+  const ab = await blob.arrayBuffer(); ab.fileStart = 0;
+  file.appendBuffer(ab); file.flush(); file.stop();
+  if (parseError) throw parseError;
+  if (!info || !info.videoTracks.length) throw new Error('MP4-Struktur: keine Videospur gefunden');
+  const video = tracks.get(info.videoTracks[0].id), audio = info.audioTracks.length ? tracks.get(info.audioTracks[0].id) : null;
+  if (!video.samples.length) throw new Error('MP4-Struktur: Videospur enthält 0 Bilder');
+  if (audio && !audio.samples.length) throw new Error('MP4-Struktur: Tonspur enthält keine Audiodaten');
+  const vi = video.info, ve = file.getTrackById(vi.id).mdia.minf.stbl.stsd.entries[0];
+  const box = ve.avcC || ve.hvcC;
+  const codec = /^avc[13]/.test(vi.codec) ? 'avc' : /^(hvc1|hev1)/.test(vi.codec) ? 'hevc' : null;
+  if (!codec || !box) throw new Error('MP4-Reparatur: Videocodec ' + vi.codec + ' wird nicht unterstützt');
+  const DS = MP4Box.DataStream || window.DataStream, ds = new DS(undefined, 0, MP4Box.Endianness?.BIG_ENDIAN ?? DS.BIG_ENDIAN);
+  box.write(ds);
+  const vcfg = { codec: vi.codec, codedWidth: vi.video.width, codedHeight: vi.video.height, description: new Uint8Array(ds.buffer, 8) };
+  const matrix = vi.matrix || [65536, 0, 0, 0, 65536];
+  const rotation = ((Math.round(Math.atan2(matrix[1], matrix[0]) * 180 / Math.PI) % 360) + 360) % 360;
+  let acfg = null, audioCodec = 'aac';
+  if (audio) {
+    const ai = audio.info, ae = file.getTrackById(ai.id).mdia.minf.stbl.stsd.entries[0];
+    if (/^mp4a/.test(ai.codec)) {
+      const descriptor = ae.esds && ae.esds.esd.findDescriptor(4)?.findDescriptor(5);
+      if (!descriptor || !descriptor.data) throw new Error('MP4-Struktur: AAC-Konfiguration fehlt');
+      acfg = { codec: ai.codec, sampleRate: ai.audio.sample_rate, numberOfChannels: ai.audio.channel_count, description: descriptor.data };
+    } else if (/^opus$/i.test(ai.codec) && ae.dOps && ae.dOps.ChannelMappingFamily === 0) {
+      audioCodec = 'opus';
+      // Metadata consumed only by the bundled mp4-muxer 5.2.1 dOps writer. That writer
+      // reads pre-skip at byte 10 and gain at byte 14; preserve both original values.
+      const description = new Uint8Array(19), view = new DataView(description.buffer);
+      description.set(new TextEncoder().encode('OpusHead')); description[8] = 1; description[9] = ae.dOps.OutputChannelCount;
+      view.setUint16(10, ae.dOps.PreSkip, true); view.setInt16(14, ae.dOps.OutputGain, true);
+      acfg = { codec: 'opus', sampleRate: ai.audio.sample_rate, numberOfChannels: ai.audio.channel_count, description };
+    } else throw new Error('MP4-Reparatur: Toncodec ' + ai.codec + ' wird nicht unterstützt');
+  }
+  const target = new Mp4Muxer.ArrayBufferTarget();
+  const options = { target, fastStart: 'in-memory', firstTimestampBehavior: 'cross-track-offset',
+    video: { codec, width: vcfg.codedWidth, height: vcfg.codedHeight, rotation } };
+  if (audio) options.audio = { codec: audioCodec, sampleRate: acfg.sampleRate, numberOfChannels: acfg.numberOfChannels };
+  const muxer = audioOnly ? null : new Mp4Muxer.Muxer(options);
+  const audioTarget = audio ? new Mp4Muxer.ArrayBufferTarget() : null;
+  const audioMuxer = audio ? new Mp4Muxer.Muxer({ target: audioTarget, fastStart: 'in-memory', firstTimestampBehavior: 'offset', audio: options.audio }) : null;
+  const sampleTime = sample => sample.dts / sample.timescale;
+  const origin = Math.min(sampleTime(video.samples[0]), audio ? sampleTime(audio.samples[0]) : Infinity);
+  let v = 0, a = 0;
+  while (v < video.samples.length || (audio && a < audio.samples.length)) {
+    const vs = video.samples[v], as = audio && audio.samples[a];
+    const isVideo = !!vs && (!as || sampleTime(vs) <= sampleTime(as));
+    const sample = isVideo ? vs : as;
+    const timestamp = Math.round((sample.cts / sample.timescale - origin) * 1e6);
+    const duration = Math.round(sample.duration / sample.timescale * 1e6);
+    if (timestamp < 0 || duration <= 0) throw new Error('MP4-Struktur: ungültige Zeitstempel');
+    if (isVideo) {
+      if (muxer) muxer.addVideoChunkRaw(sample.data, sample.is_sync ? 'key' : 'delta', timestamp, duration,
+        v === 0 ? { decoderConfig: vcfg } : undefined, Math.round((sample.cts - sample.dts) / sample.timescale * 1e6));
+      v++;
+    } else {
+      const meta = a === 0 ? { decoderConfig: acfg } : undefined;
+      if (muxer) muxer.addAudioChunkRaw(sample.data, 'key', timestamp, duration, meta);
+      audioMuxer.addAudioChunkRaw(sample.data, 'key', timestamp, duration, meta);
+      a++;
+    }
+    if ((v + a) % 180 === 0) await tick();
+  }
+  if (muxer) muxer.finalize();
+  if (audioMuxer) audioMuxer.finalize();
+  return { blob: muxer ? new Blob([target.buffer], { type: 'video/mp4' }) : null,
+    audio: audio ? { blob: new Blob([audioTarget.buffer], { type: 'audio/mp4' }), startTime: audio.samples[0].cts / audio.samples[0].timescale - origin } : null, stats: {
+    videoSamples: v, audioSamples: a, codec: vi.codec, width: vcfg.codedWidth, height: vcfg.codedHeight, rotation } };
 }
 class SegReader {
   static async open(seg, startAt) {
@@ -1609,6 +1864,55 @@ async function pickVideoConfig(w, h, fps) {
     return null;
   } finally { canvas.width = canvas.height = 1; }
 }
+// Chromium returns the AAC AudioSpecificConfig directly. Some WebKit versions return
+// an entire MPEG-4 ES_Descriptor instead. MP4's esds entry needs the inner tag 0x05.
+function aacSpecificConfig(description) {
+  if (!description) throw new Error('AAC-Encoder hat keine Tonformat-Konfiguration geliefert');
+  const data = ArrayBuffer.isView(description)
+    ? new Uint8Array(description.buffer, description.byteOffset, description.byteLength)
+    : new Uint8Array(description);
+  let offset = 0;
+  if (data.length >= 12 && String.fromCharCode(...data.subarray(4, 8)) === 'esds') offset = 12;
+  else if (data.length > 4 && data[0] === 0 && data[4] === 3) offset = 4;
+  if (![3, 4, 5].includes(data[offset])) {
+    if (data.length < 2) throw new Error('AAC-Konfiguration ist unvollständig');
+    return data.slice();
+  }
+  const find = (start, limit) => {
+    let i = start;
+    while (i < limit) {
+      const tag = data[i++]; let size = 0, last = 0;
+      for (let n = 0; n < 4; n++) {
+        if (i >= limit) throw new Error('AAC-Deskriptor ist unvollständig');
+        last = data[i++]; size = size * 128 + (last & 127);
+        if (!(last & 128)) break;
+      }
+      const end = i + size;
+      if ((last & 128) || end > limit) throw new Error('AAC-Deskriptor hat eine ungültige Länge');
+      if (tag === 5) return data.slice(i, end);
+      let nested = i;
+      if (tag === 3) {
+        if (nested + 3 > end) throw new Error('AAC-ES-Deskriptor ist unvollständig');
+        const flags = data[nested + 2]; nested += 3;
+        if (flags & 128) nested += 2;
+        if (flags & 64) { if (nested >= end) throw new Error('AAC-URL-Deskriptor ist unvollständig'); nested += 1 + data[nested]; }
+        if (flags & 32) nested += 2;
+      } else if (tag === 4) nested += 13;
+      else { i = end; continue; }
+      if (nested > end) throw new Error('AAC-Deskriptor ist unvollständig');
+      const found = find(nested, end); if (found) return found;
+      i = end;
+    }
+    return null;
+  };
+  const asc = find(offset, data.length);
+  if (!asc || asc.length < 2) throw new Error('AAC-AudioSpecificConfig fehlt');
+  return asc;
+}
+function normalizedAacMetadata(meta) {
+  if (!meta || !meta.decoderConfig) return meta;
+  return { ...meta, decoderConfig: { ...meta.decoderConfig, description: aacSpecificConfig(meta.decoderConfig.description) } };
+}
 async function exportOffline(only) {
   const fps = settings.fps, n = Math.max(1, Math.ceil(total() * fps));
   let ow = outWidth(), note = '', vcfg = await pickVideoConfig(ow, Math.round(ow * 16 / 9), fps);
@@ -1642,7 +1946,7 @@ async function exportOffline(only) {
     aenc = new AudioEncoder({ output: (c, m) => {
       try {
         if (audioT0 === undefined) audioT0 = c.timestamp;
-        muxer.addAudioChunk(c, m, c.timestamp - audioT0); audioCount++;
+        muxer.addAudioChunk(c, normalizedAacMetadata(m), c.timestamp - audioT0); audioCount++;
       } catch (e) { encErr = e; }
     }, error: e => { encErr = e; } });
     aenc.configure(acfg);
@@ -1817,42 +2121,152 @@ function idb() {
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
 }
-const txDone = tx => new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
+const txDone = tx => new Promise((res, rej) => {
+  let requestError = null;
+  tx.oncomplete = res;
+  // WebKit may fire a request error before tx.error is assigned. Wait for abort
+  // and retain the request's real error instead of rejecting with null.
+  tx.onerror = ev => { requestError = ev.target && ev.target.error || requestError; rej(tx.error || requestError || new Error('Browser konnte die Aufnahmedaten nicht schreiben')); };
+  tx.onabort = () => rej(tx.error || requestError || new Error('Browser-Speichertransaktion abgebrochen'));
+});
+let lastSaveError = null;
 async function saveAll() {
+  lastSaveError = null;
+  let db = null, tx = null;
   try {
-    const db = await idb(), tx = db.transaction(['segs', 'blobs'], 'readwrite');
-    const ss = tx.objectStore('segs'), bs = tx.objectStore('blobs'), keep = referencedBlobs(false);
-    ss.clear();
-    state.segs.forEach((s, i) => ss.put({ ...metaOf(s), idx: i }));
-    for (const id of keep) { const m = media.get(id); if (m && !m.saved) { bs.put({ id, blob: m.blob, mime: m.mime }); m.saved = true; } }
-    bs.getAllKeys().onsuccess = e => e.target.result.forEach(k => {
-      if (!keep.has(k)) { bs.delete(k); const m = media.get(k); if (m) m.saved = false; }
+    const keep = referencedBlobs(false), pending = [];
+    for (const id of keep) {
+      const item = recoveries.get(id), m = media.get(id);
+      if (item && !item.saved) pending.push({ id, item, bytes: await item.blob.arrayBuffer() });
+      else if (!item && m && !m.saved) pending.push({ id, m, bytes: await m.blob.arrayBuffer() });
+    }
+    db = await idb(); tx = db.transaction(['segs', 'blobs'], 'readwrite');
+    const ss = tx.objectStore('segs'), bs = tx.objectStore('blobs');
+    ss.clear(); state.segs.forEach((seg, idx) => ss.put({ ...metaOf(seg), idx }));
+    for (const entry of pending) {
+      if (entry.item) {
+        const item = entry.item;
+        bs.put({ id: entry.id, bytes: entry.bytes, mime: item.blob.type, recovery: { meta: item.meta, diagnostic: item.diagnostic, created: item.created } });
+      } else bs.put({ id: entry.id, bytes: entry.bytes, mime: entry.m.mime });
+    }
+    bs.getAllKeys().onsuccess = ev => ev.target.result.forEach(id => {
+      if (!keep.has(id)) { bs.delete(id); const m = media.get(id); if (m) m.saved = false; }
     });
-    await txDone(tx); db.close(); return true;
-  } catch (e) { toast('Speichern im Browser hat nicht geklappt. Aufnahmen bleiben nur bis zum Neuladen.'); return false; }
+    await txDone(tx);
+    pending.forEach(entry => { (entry.item || entry.m).saved = true; });
+    return true;
+  } catch (e) {
+    // A synchronous put failure must roll back the preceding clear as well.
+    if (tx) { try { tx.abort(); } catch (ignored) {} }
+    lastSaveError = `${e && e.name || 'Fehler'}: ${e && e.message || e || 'Browser-Speichertransaktion fehlgeschlagen'}`;
+    console.warn('Browser save failed', e); toast('Speichern im Browser hat nicht geklappt. Aufnahmen bleiben nur bis zum Neuladen.'); return false;
+  } finally { if (db) db.close(); }
 }
 async function loadStore() {
   try {
     const db = await idb(), tx = db.transaction(['segs', 'blobs'], 'readonly');
-    const all = st => new Promise((res, rej) => { const q = tx.objectStore(st).getAll(); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
-    const [segs, blobs] = await Promise.all([all('segs'), all('blobs')]);
-    db.close();
-    return { segs: segs.sort((a, b) => a.idx - b.idx), blobs };
+    const segsPromise = new Promise((res, rej) => { const r = tx.objectStore('segs').getAll(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+    // Read encoded bytes one record at a time, not all into JS memory together.
+    const blobsPromise = new Promise((res, rej) => {
+      const rows = [], r = tx.objectStore('blobs').openCursor();
+      r.onerror = () => rej(r.error);
+      r.onsuccess = () => {
+        const cursor = r.result;
+        if (!cursor) { res(rows); return; }
+        const row = cursor.value;
+        if (!row.blob && row.bytes) row.blob = new Blob([row.bytes], { type: row.mime || 'video/mp4' });
+        delete row.bytes;
+        rows.push(row); cursor.continue();
+      };
+    });
+    const [segs, blobs] = await Promise.all([segsPromise, blobsPromise]);
+    db.close(); return { segs: segs.sort((a, b) => a.idx - b.idx), blobs };
   } catch (e) { return { segs: [], blobs: [] }; }
+}
+async function savedTakeCount() {
+  const db = await idb();
+  try {
+    return await new Promise((res, rej) => { const r = db.transaction('segs', 'readonly').objectStore('segs').count(); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  } finally { db.close(); }
 }
 async function restore() {
   const { segs, blobs } = await loadStore();
-  for (const b of blobs) { try { await prepMedia(b.id, b.blob, b.mime); media.get(b.id).saved = true; } catch (e) {} }
+  for (const b of blobs) {
+    if (b.recovery) {
+      const item = { ...b.recovery, blob: b.blob, saved: true, url: URL.createObjectURL(b.blob) };
+      recoveries.set(b.id, item); continue;
+    }
+    try { await prepMedia(b.id, b.blob, b.mime); media.get(b.id).saved = true; } catch (e) {}
+  }
+  updateRecoveryUI();
   for (const row of segs) {
     if (!media.has(row.blobId)) continue;
     const seg = { id: row.id, blobId: row.blobId, side: row.side, start: row.start, dur: row.dur, offset: row.offset, mirror: row.mirror };
-    try { await makeSegVideo(seg); state.segs.push(seg); } catch (e) { disposeSegVideo(seg); }
+    try { await makeSegVideo(seg); state.segs.push(seg); }
+    catch (e) {
+      disposeSegVideo(seg); const m = media.get(row.blobId);
+      if (m) await keepRecording(metaOf(seg), m.blob, recordingDiagnostic(e, {}, m.blob, { stage: 'Gespeicherte Aufnahme laden' }));
+    }
   }
   if (state.segs.length) {
     state.next = other(state.segs[state.segs.length - 1].side);
     toast(`${state.segs.length} gespeicherte Aufnahmen geladen.`);
   }
 }
+
+// ---------- retained originals and diagnostics ----------
+function selectedRecovery() { return recoveries.get($('#recoveryPick').value) || Array.from(recoveries.values()).at(-1); }
+function updateRecoveryUI() {
+  const card = $('#recoveryCard'); if (!card) return;
+  card.hidden = recoveries.size === 0;
+  if (!recoveries.size) return;
+  const pick = $('#recoveryPick'), previous = pick.value;
+  pick.textContent = '';
+  for (const [id, item] of recoveries) {
+    const o = document.createElement('option'); o.value = id;
+    o.textContent = `${sideName(item.meta.side)} · ${fmt(item.meta.dur)} · ${new Date(item.created).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+    pick.appendChild(o);
+  }
+  pick.value = recoveries.has(previous) ? previous : Array.from(recoveries.keys()).at(-1);
+  const item = selectedRecovery();
+  $('#recoveryCount').textContent = String(recoveries.size);
+  $('#recoveryInfo').textContent = `Version ${item.diagnostic.version} · ${item.diagnostic.stage}: ${item.diagnostic.error}. ` +
+    (item.saved ? 'Original im Browser gesichert.' : 'Original nur in dieser Sitzung verfügbar; bitte jetzt sichern.');
+  const link = $('#btnRecoveryDownload'); link.href = item.url;
+  link.download = `kloncam-original-${item.meta.side.toLowerCase()}-${item.meta.blobId}.${item.blob.type.includes('webm') ? 'webm' : 'mp4'}`;
+  $('#btnRecoveryRetry').disabled = state.mode !== 'idle' || !!cameraOpening;
+  pick.disabled = state.mode !== 'idle';
+}
+$('#recoveryPick').addEventListener('change', () => { $('#recoveryDetails').hidden = true; updateRecoveryUI(); });
+$('#btnRecoveryDetails').addEventListener('click', async () => {
+  const item = selectedRecovery(); if (!item) return;
+  const details = JSON.stringify({ ...item.diagnostic, originalSaved: item.saved, created: item.created }, null, 2);
+  try { await navigator.clipboard.writeText(details); toast('Fehlerdetails kopiert. Du kannst sie im Chat einfügen.'); }
+  catch (e) { const text = $('#recoveryDetails'); text.value = details; text.hidden = false; text.focus(); text.select(); }
+});
+$('#btnRecoveryRetry').addEventListener('click', async () => {
+  if (state.mode !== 'idle' || cameraOpening) return;
+  const item = selectedRecovery(); if (!item) return;
+  const resume = camOn;
+  state.mode = 'busy'; updateUI(); $('#busy').textContent = 'Originalaufnahme wird erneut eingelesen …';
+  detachCamera(); state.segs.forEach(disposeSegVideo);
+  const existing = state.segs.find(s => s.blobId === item.meta.blobId);
+  const seg = existing || { ...item.meta, start: Math.max(item.meta.start, coverage(item.meta.side)) };
+  let success = false;
+  try {
+    const stale = media.get(seg.blobId); if (stale && stale.url) URL.revokeObjectURL(stale.url); media.delete(seg.blobId);
+    const m = await readRecording(seg, item.blob, item.diagnostic);
+    if (m.duration < seg.offset + seg.dur) seg.dur = Math.max(0.1, m.duration - seg.offset);
+    if (!existing) { pushHistory(); state.segs.push(seg); state.next = other(seg.side); }
+    recoveries.delete(seg.blobId); m.saved = false;
+    if (!await saveAll()) { recoveries.set(seg.blobId, item); throw new Error('Wiederhergestellte Aufnahme konnte nicht gesichert werden'); }
+    URL.revokeObjectURL(item.url); success = true;
+  } catch (e) {
+    item.diagnostic.error = String(e.message || e); item.diagnostic.stage = 'Erneut einlesen';
+    try { await persistRecovery(item); } catch (err) { item.saved = false; }
+  } finally { updateRecoveryUI(); await resumeCaptureAfterRead(resume); }
+  toast(success ? 'Aufnahme wiederhergestellt und gesichert.' : 'Original bleibt erhalten. Bitte die Fehlerdetails kopieren.');
+});
 
 // ---------- events ----------
 $('#btnStart').addEventListener('click', enable);
@@ -2089,11 +2503,11 @@ checkForUpdates();
 renderAt(0, null, Infinity, false);
 updateUI();
 setZoom(1);
-loadStore().then(({ segs }) => {
-  if (segs.length) { const n = $('#savedNote'); n.textContent = `${segs.length} gespeicherte Aufnahmen warten und werden beim Start geladen.`; n.hidden = false; }
-});
+savedTakeCount().then(count => {
+  if (count) { const n = $('#savedNote'); n.textContent = `${count} gespeicherte Aufnahmen warten und werden beim Start geladen.`; n.hidden = false; }
+}).catch(() => {});
 requestAnimationFrame(loop);
-window.__kloncam = { state, settings, media, canOffline, release: APP_RELEASE, get ac() { return ac; } }; // debug handle
+window.__kloncam = { state, settings, media, recoveries, canOffline, release: APP_RELEASE, get ac() { return ac; } }; // debug handle
 })();
 </script>
 </body>
