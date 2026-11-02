@@ -13,201 +13,287 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <title>KlonCam</title>
 <style>
-/* Layout: phone = stage on top, controls below; wide screens = stage left, panel right. Dark camera-app look by choice. */
+/* Layout: phone = stage on top, cards below; wide screens = stage left, panel right.
+   Look: dark pro-camera UI — glass overlays on the image, quiet cards, two side colours as the only accents. */
 :root{
-  --bg:#0e0f13; --panel:#171920; --panel2:#1f222b; --line:#2b2f3a;
-  --fg:#eef0f5; --muted:#8d92a3;
-  --sideA:#ff9f43; --sideB:#4dd6c4; --rec:#ff3b4e;
+  --bg:#08090c; --surface:#121318; --surface2:#1a1c23; --surface3:#23262f;
+  --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13);
+  --fg:#f3f4f8; --muted:#8a8f9f; --dim:#5d6272;
+  --sideA:#ff9f43; --sideB:#3ddbc6; --rec:#ff3b4e;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:radial-gradient(120% 60% at 50% -10%,#191b24 0%,var(--bg) 60%) fixed,var(--bg);color:var(--fg);
+  font:15px/1.4 system-ui,-apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit}
 [hidden]{display:none!important}
+
+/* icons: inline SVG masks, painted in currentColor */
+.ic::before,.btn[class*="i-"]::before{content:"";width:18px;height:18px;flex:none;background:currentColor;-webkit-mask:var(--i) center/contain no-repeat;mask:var(--i) center/contain no-repeat}
+.i-undo{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M9 14 4 9l5-5'/><path d='M4 9h10.5a5.5 5.5 0 0 1 0 11H11'/></svg>")}
+.i-redo{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m15 14 5-5-5-5'/><path d='M20 9H9.5a5.5 5.5 0 0 0 0 11H13'/></svg>")}
+.i-play{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M7 4.5v15l12-7.5z' fill='black'/></svg>")}
+.i-stop{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='6' y='6' width='12' height='12' rx='2' fill='black'/></svg>")}
+.i-cut{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='6' cy='6' r='3'/><circle cx='6' cy='18' r='3'/><path d='M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12'/></svg>")}
+.i-flip{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 8a2 2 0 0 1 2-2h2.5L9 4h6l1.5 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/><path d='M9 13.5a3 3 0 0 0 5.2 1.6M15 11.5a3 3 0 0 0-5.2-1.6'/><path d='M14.6 16.6l-.4-1.5 1.5-.4M9.4 8.4l.4 1.5-1.5.4'/></svg>")}
+.i-trash{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3'/></svg>")}
+.i-export{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 4v11M7 10l5 5 5-5M5 20h14'/></svg>")}
+.i-person{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='8' r='4'/><path d='M4 20a8 8 0 0 1 16 0'/></svg>")}
+.i-sliders{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'><path d='M4 7h9M17 7h3M4 17h3M11 17h9'/><circle cx='15' cy='7' r='2'/><circle cx='9' cy='17' r='2'/></svg>")}
+.i-share{--i:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6'/></svg>")}
+
 #app{min-height:100%;display:flex;flex-direction:column;
-  padding-top:env(safe-area-inset-top,0px);padding-bottom:max(12px,env(safe-area-inset-bottom,0px));
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:max(16px,env(safe-area-inset-bottom,0px));
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-header{display:flex;align-items:center;justify-content:space-between;padding-block:10px}
-.brand{font-weight:850;font-size:21px;letter-spacing:-.03em}
-.brand .a{color:var(--sideA)} .brand .b{color:var(--sideB)}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:19px;letter-spacing:-.02em}
+.mark{width:26px;height:26px;border-radius:8px;background:linear-gradient(90deg,var(--sideA) 0 50%,var(--sideB) 50% 100%);position:relative;box-shadow:0 0 0 1px rgba(255,255,255,.12) inset}
+.mark::after{content:"";position:absolute;inset:0;margin:auto;width:2px;height:100%;background:var(--bg)}
+.hdrRight{display:flex;align-items:center;gap:8px}
+.qBadge{font:600 12px/1 var(--mono);letter-spacing:.04em;padding:8px 10px;border-radius:9px;background:var(--surface);border:1px solid var(--line2);color:var(--fg);cursor:pointer}
+.iconBtn{width:38px;height:38px;border-radius:11px;background:var(--surface);border:1px solid var(--line2);display:grid;place-items:center;cursor:pointer;padding:0}
 main{display:grid;gap:16px;align-items:start}
-.stage{position:relative;aspect-ratio:9/16;height:min(60dvh,calc((100vw - 32px)*16/9));max-width:100%;margin-inline:auto;border-radius:14px;overflow:hidden;background:#000}
+
+/* stage */
+.stage{position:relative;aspect-ratio:9/16;height:min(58dvh,calc((100vw - 32px)*16/9));max-width:100%;margin-inline:auto;border-radius:20px;overflow:hidden;background:#000;
+  box-shadow:0 0 0 1px var(--line2),0 24px 60px rgba(0,0,0,.55)}
 .stage canvas{width:100%;height:100%;display:block}
 .overlay{position:absolute;inset:0;pointer-events:none}
-.tag{position:absolute;top:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border-radius:999px;background:rgba(0,0,0,.55);display:flex;gap:5px;align-items:center}
+.overlay::before{content:"";position:absolute;inset:0 0 auto;height:70px;background:linear-gradient(rgba(0,0,0,.45),transparent)}
+.glass{background:rgba(12,13,18,.55);-webkit-backdrop-filter:blur(12px) saturate(140%);backdrop-filter:blur(12px) saturate(140%);border:1px solid rgba(255,255,255,.12)}
+.tag{position:absolute;top:10px;font-size:10.5px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;padding:4px 8px;border-radius:999px;display:flex;gap:6px;align-items:center}
 .tag i{width:7px;height:7px;border-radius:50%;display:inline-block}
-.tag.A{left:8px} .tag.A i{background:var(--sideA)}
-.tag.B{left:calc(var(--split,50%) + 8px)} .tag.B i{background:var(--sideB)}
-.stage.tb .tag.B{left:8px;top:calc(var(--split,50%) + 8px)}
-#seam{position:absolute;top:0;bottom:0;left:var(--split,50%);border-left:2px dashed rgba(255,255,255,.55)}
-.stage.tb #seam{top:var(--split,50%);bottom:auto;left:0;right:0;border-left:0;border-top:2px dashed rgba(255,255,255,.55)}
-.tag.rec{background:var(--rec);color:#fff}
-.tag.rec i{background:#fff;animation:blink 1s steps(2) infinite}
+.tag.A{left:10px} .tag.A i{background:var(--sideA);box-shadow:0 0 8px var(--sideA)}
+.tag.B{left:calc(var(--split,50%) + 10px)} .tag.B i{background:var(--sideB);box-shadow:0 0 8px var(--sideB)}
+.stage.tb .tag.B{left:10px;top:calc(var(--split,50%) + 10px)}
+.tag.rec{background:var(--rec);border-color:transparent;color:#fff}
+.tag.rec i{background:#fff;box-shadow:none;animation:blink 1s steps(2) infinite}
+#seam{position:absolute;top:0;bottom:0;left:var(--split,50%);border-left:1.5px dashed rgba(255,255,255,.6)}
+.stage.tb #seam{top:var(--split,50%);bottom:auto;left:0;right:0;border-left:0;border-top:1.5px dashed rgba(255,255,255,.6)}
 @keyframes blink{50%{opacity:0}}
-#countdown{position:absolute;inset:0;display:grid;place-items:center;font-size:120px;font-weight:900;color:#fff;text-shadow:0 4px 30px rgba(0,0,0,.6)}
-#recTimer{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);padding:4px 10px;border-radius:999px;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
-#btnLive{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);pointer-events:auto;background:var(--fg);color:var(--bg);border:0;border-radius:999px;padding:7px 14px;font-weight:700;font-size:13px;cursor:pointer}
-#busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(10,11,15,.7);font-weight:600;text-align:center;padding:20px}
-#startCard{position:absolute;inset:0;pointer-events:auto;display:flex;flex-direction:column;justify-content:center;gap:12px;padding:22px;background:linear-gradient(90deg,rgba(255,159,67,.13) 0 50%,rgba(77,214,196,.13) 50% 100%),#101117}
-#startCard h1{margin:0;font-size:24px;line-height:1.15;letter-spacing:-.02em;text-wrap:balance}
-#startCard ol{margin:0;padding-left:18px;color:#c9ccd6;font-size:14px;display:grid;gap:6px}
+#countdown{position:absolute;inset:0;display:grid;place-items:center;font:800 128px/1 var(--mono);color:#fff;text-shadow:0 6px 40px rgba(0,0,0,.6)}
+#recTimer{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);padding:6px 12px 6px 10px;border-radius:999px;font:700 14px/1 var(--mono);display:flex;align-items:center;gap:8px;white-space:nowrap}
+#recTimer::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--rec);box-shadow:0 0 10px var(--rec);animation:blink 1s steps(2) infinite}
+#btnLive{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);pointer-events:auto;background:var(--fg);color:var(--bg);border:0;border-radius:999px;padding:9px 16px;font-weight:750;font-size:13px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+#busy{position:absolute;inset:0;display:grid;place-items:center;background:rgba(8,9,12,.72);font-weight:650;text-align:center;padding:20px}
+#startCard{position:fixed;inset:0;z-index:15;overflow:auto;display:flex;
+  padding:max(24px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-right,0px)) max(24px,env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));
+  background:linear-gradient(180deg,rgba(8,9,12,.2) 0%,rgba(8,9,12,.9) 42%,#08090c 70%),linear-gradient(90deg,rgba(255,159,67,.35) 0 50%,rgba(61,219,198,.3) 50% 100%),#08090c}
+.startInner{margin:auto;width:100%;max-width:440px;display:flex;flex-direction:column;gap:18px}
+.startInner .brand{font-size:22px;margin-bottom:6px}
+.startInner .mark{width:34px;height:34px;border-radius:10px}
+#startCard .eyebrow{font:700 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+#startCard h1{margin:-8px 0 0;font-size:30px;line-height:1.08;letter-spacing:-.03em;text-wrap:balance}
+#startCard ol{margin:0;padding:0;list-style:none;display:grid;gap:10px;counter-reset:s}
+#startCard li{counter-increment:s;display:grid;grid-template-columns:24px 1fr;gap:10px;color:#cfd2db;font-size:14px}
+#startCard li::before{content:counter(s);width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font:700 12px/1 var(--mono);background:var(--surface3);color:var(--fg)}
+#startCard li:nth-child(1)::before{background:var(--sideA);color:#1a1206}
+#startCard li:nth-child(2)::before{background:var(--sideB);color:#05201c}
 #startCard .note{font-size:13px;color:var(--muted)}
 #startErr{color:#ff8a95;font-size:14px}
-.panel{display:flex;flex-direction:column;gap:14px;min-width:0}
-.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px}
-.seg button{border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer}
-.seg button small{font-weight:500;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+
+/* panel */
+.panel{display:flex;flex-direction:column;gap:12px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.cardHead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font:700 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.cardHead b{color:var(--fg);font-weight:700;letter-spacing:.04em}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--bg);border:1px solid var(--line);border-radius:13px;padding:4px;gap:4px}
+.seg button{border:0;background:transparent;border-radius:10px;padding:9px 6px;font-weight:750;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;transition:background .15s}
+.seg button span{display:flex;align-items:center;gap:7px}
+.seg button span::before{content:"";width:8px;height:8px;border-radius:50%}
+.seg button[data-side=A] span::before{background:var(--sideA)}
+.seg button[data-side=B] span::before{background:var(--sideB)}
+.seg button small{font:500 11.5px/1.2 var(--mono);color:var(--muted)}
 .seg button.on[data-side=A]{background:var(--sideA);color:#1a1206}
 .seg button.on[data-side=B]{background:var(--sideB);color:#05201c}
-.seg button.on small{color:inherit;opacity:.75}
+.seg button.on span::before{background:currentColor}
+.seg button.on small{color:inherit;opacity:.7}
 .seg button:disabled{cursor:default}
-.ctrl{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px}
-.btn{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 12px;font-weight:650;cursor:pointer;text-align:center;text-decoration:none}
-.btn:disabled{opacity:.4;cursor:default}
-.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
-.btn.danger{color:#ff8a95}
-.btn.on{border-color:var(--rec);color:#ff8a95}
-.btn:focus-visible,.seg button:focus-visible,.rec:focus-visible{outline:2px solid var(--sideB);outline-offset:2px}
-.rec{width:78px;height:78px;border-radius:50%;border:4px solid var(--fg);background:transparent;display:grid;place-items:center;cursor:pointer;padding:0}
-.rec span{width:58px;height:58px;border-radius:50%;background:var(--rec);transition:all .18s}
-.rec.on span{width:30px;height:30px;border-radius:7px}
+.ctrl{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;padding-top:4px}
+.ctrl .left{display:flex;justify-content:flex-end;gap:6px;min-width:0}
+.ctrl .right{display:flex;justify-content:flex-start;gap:6px;min-width:0}
+.tool{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:0;padding:0;font-size:11.5px;font-weight:650;color:var(--muted);cursor:pointer;min-width:50px}
+.tool .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--surface3);border:1px solid var(--line2);color:var(--fg);transition:transform .12s,background .15s}
+@media (max-width:370px){ .ctrl{display:flex;justify-content:center;gap:10px} .rec{width:74px;height:74px} .rec span{width:58px;height:58px} }
+.tool:active .ic{transform:scale(.94)}
+.tool.stopping .ic{background:var(--fg);color:var(--bg)}
+.tool:disabled{opacity:.35;cursor:default}
+.rec{width:82px;height:82px;border-radius:50%;border:3px solid rgba(255,255,255,.92);background:transparent;display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:0 0 0 6px rgba(255,59,78,.0);transition:box-shadow .2s}
+.rec span{width:64px;height:64px;border-radius:50%;background:var(--rec);transition:all .2s;box-shadow:0 6px 20px rgba(255,59,78,.45)}
+.rec.on{box-shadow:0 0 0 6px rgba(255,59,78,.18)}
+.rec.on span{width:30px;height:30px;border-radius:8px}
 .rec:disabled{opacity:.35;cursor:default}
-.recLabel{text-align:center;font-weight:700;margin-top:-6px}
-.hint{color:var(--muted);font-size:14px;text-align:center;min-height:1.4em;text-wrap:pretty}
-.tl{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:stretch}
-.tlLabels{display:grid;grid-template-rows:1fr 1fr;gap:6px;font-size:12px;font-weight:700;color:var(--muted)}
-.tlLabels span{display:flex;align-items:center}
-.tlTracks{position:relative;display:grid;grid-template-rows:30px 30px;gap:6px;min-width:0;touch-action:none;cursor:pointer;padding-block:4px}
-.track{position:relative;background:var(--panel);border-radius:6px;overflow:hidden}
-.blk{position:absolute;top:0;bottom:0;border-radius:5px;font-size:11px;font-weight:800;display:flex;align-items:center;padding-left:5px;overflow:hidden;border-right:2px solid var(--bg)}
-.blk.A{background:var(--sideA);color:#1a1206}
-.blk.B{background:var(--sideB);color:#05201c}
-.blk.live{background:var(--rec);color:#fff}
-.playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--fg);border-radius:2px;margin-left:-1px;pointer-events:none}
-.playhead::before{content:"";position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--fg)}
-.tlSel{position:absolute;top:0;bottom:0;background:rgba(255,59,78,.35);border-inline:2px solid var(--rec);pointer-events:none}
-.tlMeta{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-.cutBar{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.recLabel{text-align:center;font-weight:750;font-size:15px;margin-top:-4px}
+.hint{color:var(--muted);font-size:13.5px;text-align:center;min-height:1.4em;text-wrap:pretty;margin-top:-4px}
+
+/* timeline */
+.tl{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:stretch}
+.tlLabels{display:grid;grid-template-rows:16px 34px 34px;gap:6px;font-size:11px;font-weight:750;color:var(--muted);padding-block:4px}
+.tlLabels span{display:flex;align-items:center;gap:6px}
+.tlLabels span:not(:first-child)::before{content:"";width:6px;height:6px;border-radius:50%}
+#labA::before{background:var(--sideA)} #labB::before{background:var(--sideB)}
+.tlTracks{position:relative;display:grid;grid-template-rows:16px 34px 34px;gap:6px;min-width:0;touch-action:none;cursor:pointer;padding-block:4px}
+.ruler{position:relative;border-bottom:1px solid var(--line2)}
+.ruler .tk{position:absolute;bottom:0;width:1px;height:5px;background:var(--dim)}
+.ruler .tk.major{height:8px;background:var(--muted)}
+.ruler .tk b{position:absolute;bottom:9px;left:3px;font:500 9.5px/1 var(--mono);color:var(--muted);white-space:nowrap}
+.track{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.blk{position:absolute;top:2px;bottom:2px;border-radius:6px;font:700 10.5px/1 var(--mono);display:flex;align-items:center;padding-left:6px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.25)}
+.blk.A{background:linear-gradient(180deg,#ffb468,var(--sideA));color:#1a1206}
+.blk.B{background:linear-gradient(180deg,#6be8d7,var(--sideB));color:#05201c}
+.blk.live{background:linear-gradient(180deg,#ff6b79,var(--rec));color:#fff}
+.playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--fg);border-radius:2px;margin-left:-1px;pointer-events:none;box-shadow:0 0 8px rgba(255,255,255,.35)}
+.playhead::before{content:"";position:absolute;top:-1px;left:-5px;width:12px;height:10px;background:var(--fg);clip-path:polygon(0 0,100% 0,50% 100%)}
+.tlSel{position:absolute;top:22px;bottom:0;background:rgba(255,59,78,.28);border-inline:2px solid var(--rec);border-radius:4px;pointer-events:none}
+.tlMeta{display:flex;justify-content:space-between;color:var(--muted);font:500 11.5px/1.3 var(--mono)}
+.cutBar{display:flex;flex-direction:column;gap:10px;background:var(--bg);border:1px solid rgba(255,59,78,.35);border-radius:13px;padding:12px}
 .cutBar .small{text-align:center}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--surface2);border:1px solid var(--line2);border-radius:12px;padding:12px 12px;font-weight:700;font-size:14.5px;cursor:pointer;text-align:center;text-decoration:none;color:var(--fg);transition:transform .12s,background .15s}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.38;cursor:default;transform:none}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.big{padding:15px 14px;font-size:16px;border-radius:14px}
+.btn.ghost{background:transparent}
+.btn.danger{color:#ff8a95}
+.btn:focus-visible,.seg button:focus-visible,.rec:focus-visible,.tool:focus-visible .ic,.iconBtn:focus-visible,.qBadge:focus-visible{outline:2px solid var(--sideB);outline-offset:2px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
-.row .btn{flex:1 1 0}
-details{color:var(--muted);font-size:14px}
-details summary{cursor:pointer;font-weight:650;color:var(--fg)}
-details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
-.sheetBg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
-.sheet{background:var(--panel2);width:min(520px,100%);border-radius:18px 18px 0 0;padding:18px max(16px,env(safe-area-inset-left,0px)) max(18px,env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;max-height:92dvh;overflow:auto}
-.sheet h2{margin:0;font-size:18px}
-.sheet h3{margin:6px 0 -4px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.row .btn{flex:1 1 0;min-width:0}
+.spec{display:flex;justify-content:center;gap:10px;font:600 11px/1 var(--mono);letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.spec span+span::before{content:"·";margin-right:10px;color:var(--dim)}
+details{color:var(--muted);font-size:13.5px;padding-inline:4px}
+details summary{cursor:pointer;font-weight:700;color:var(--fg);font-size:14px}
+details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
+
+/* sheets */
+.sheetBg{position:fixed;inset:0;background:rgba(0,0,0,.62);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px))}
+.sheet{background:var(--surface);border:1px solid var(--line2);border-bottom:0;width:min(520px,100%);border-radius:22px 22px 0 0;padding:10px max(18px,env(safe-area-inset-left,0px)) max(20px,env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:14px;max-height:92dvh;overflow:auto}
+.sheet::before{content:"";align-self:center;width:38px;height:5px;border-radius:9px;background:var(--line2);flex:none}
+.sheet h2{margin:0;font-size:19px;letter-spacing:-.01em}
+.sheet h3{margin:8px 0 -4px;font:700 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .field{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.field label{font-weight:600}
-.field select{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit;max-width:60%}
+.field label{font-weight:650}
+.field select{background:var(--surface2);color:var(--fg);border:1px solid var(--line2);border-radius:10px;padding:8px 10px;font:inherit;font-size:14px;max-width:60%}
 .field input[type=checkbox]{width:22px;height:22px;accent-color:var(--sideB)}
 .stack{display:flex;flex-direction:column;gap:6px}
 .stack .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.stack .head label{font-weight:600}
-.stack .head output{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.stack .head label{font-weight:650}
+.stack .head output{font:500 12.5px/1 var(--mono);color:var(--muted)}
 .stack input[type=range]{width:100%;accent-color:var(--sideB)}
-.ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);padding-inline:2px;font-variant-numeric:tabular-nums}
-.ticks span{display:flex;flex-direction:column;align-items:center;width:2.4em}
-.ticks span::before{content:"";width:1px;height:6px;background:var(--muted);margin-bottom:2px}
+.ticks{display:flex;justify-content:space-between;font:500 10.5px/1 var(--mono);color:var(--muted);padding-inline:2px}
+.ticks span{display:flex;flex-direction:column;align-items:center;width:2.6em}
+.ticks span::before{content:"";width:1px;height:6px;background:var(--muted);margin-bottom:3px}
 .ticks .mid{color:var(--fg);font-weight:700}
 .ticks .mid::before{height:9px;width:2px;background:var(--fg)}
-.note{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;color:#c9ccd6;display:grid;gap:4px}
+.note{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:13px;color:#c9ccd6;display:grid;gap:5px}
 .note b{color:var(--fg)}
 .small{font-size:13px;color:var(--muted)}
-#resVideo{width:100%;max-height:55dvh;background:#000;border-radius:10px}
-.progress{height:8px;background:var(--panel);border-radius:99px;overflow:hidden}
-.progress div{height:100%;width:0;background:linear-gradient(90deg,var(--sideA),var(--sideB))}
-#toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 14px;border-radius:10px;font-weight:600;z-index:30;max-width:calc(100% - 32px)}
+#resVideo{width:100%;max-height:52dvh;background:#000;border-radius:14px}
+.progress{height:6px;background:var(--surface3);border-radius:99px;overflow:hidden}
+.progress div{height:100%;width:0;background:linear-gradient(90deg,var(--sideA),var(--sideB));transition:width .2s}
+#expInfo{font-family:var(--mono);font-size:12px}
+#toast{position:fixed;left:50%;bottom:max(20px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 15px;border-radius:12px;font-weight:650;font-size:14px;z-index:30;max-width:calc(100% - 32px);box-shadow:0 12px 30px rgba(0,0,0,.45)}
 #mediaBox{position:fixed;left:0;top:0;width:2px;height:2px;overflow:hidden;opacity:.01;pointer-events:none}
 #mediaBox video{width:2px;height:2px}
 @media (min-width:820px){
-  main{grid-template-columns:auto minmax(320px,400px);justify-content:center}
-  .stage{height:calc(100dvh - 90px)}
+  main{grid-template-columns:auto minmax(340px,410px);justify-content:center;gap:22px}
+  .stage{height:calc(100dvh - 92px)}
 }
-@media (prefers-reduced-motion:reduce){.rec span{transition:none}.tag.rec i{animation:none}}
+@media (prefers-reduced-motion:reduce){.rec span,.btn,.tool .ic,.progress div{transition:none}.tag.rec i,#recTimer::before{animation:none}}
 </style>
 </head>
 <body>
 <div id="app">
   <header>
-    <div class="brand"><span class="a">Klon</span><span class="b">Cam</span></div>
-    <button class="btn" id="btnSettings" type="button">Einstellungen</button>
+    <div class="brand"><span class="mark" aria-hidden="true"></span>KlonCam</div>
+    <div class="hdrRight">
+      <button class="qBadge" id="qBadge" type="button" aria-label="Qualität einstellen">1080p · 30</button>
+      <button class="iconBtn ic i-sliders" id="btnSettings" type="button" aria-label="Einstellungen"></button>
+    </div>
   </header>
   <main>
     <div class="stage" id="stageBox">
-      <canvas id="stage" width="1080" height="1920"></canvas>
+      <canvas id="stage" width="720" height="1280"></canvas>
       <div class="overlay">
-        <div class="tag A" id="tagA"><i></i><span>Links</span></div>
-        <div class="tag B" id="tagB"><i></i><span>Rechts</span></div>
+        <div class="tag A glass" id="tagA"><i></i><span>Links</span></div>
+        <div class="tag B glass" id="tagB"><i></i><span>Rechts</span></div>
         <div id="seam" hidden></div>
         <div id="countdown" hidden>3</div>
-        <div id="recTimer" hidden>0:00,0</div>
+        <div id="recTimer" class="glass" hidden>0:00,0</div>
         <button id="btnLive" type="button" hidden>Zurück zur Kamera</button>
         <div id="busy" hidden>Aufnahme wird vorbereitet …</div>
-        <div id="startCard">
-          <h1>Mit dir selbst reden, ohne Zählen und Raten</h1>
-          <ol>
-            <li>Links sagst du deinen ersten Satz, dann Stopp.</li>
-            <li>Rechts läuft links ab. Du hörst zu, reagierst und antwortest, sobald links fertig ist.</li>
-            <li>Wieder links: Rechts läuft ab, du antwortest. So weiter, bis das Gespräch fertig ist.</li>
-          </ol>
-          <div class="note">Mit Kopfhörern klappt es am besten, sonst nimmt das Mikro den Lautsprecher mit auf.</div>
-          <div class="note" id="savedNote" hidden></div>
-          <button class="btn primary" id="btnStart" type="button">Kamera starten</button>
-          <div id="startErr" hidden></div>
-        </div>
       </div>
     </div>
 
     <section class="panel">
-      <div class="seg" id="sidePick">
-        <button type="button" data-side="A"><span id="pickNameA">Links</span><small id="pickTimeA">ab 0:00,0</small></button>
-        <button type="button" data-side="B"><span id="pickNameB">Rechts</span><small id="pickTimeB">ab 0:00,0</small></button>
+      <div class="card">
+        <div class="cardHead"><span>Aufnahme</span><b id="nextInfo"></b></div>
+        <div class="seg" id="sidePick">
+          <button type="button" data-side="A"><span id="pickNameA">Links</span><small id="pickTimeA">ab 0:00,0</small></button>
+          <button type="button" data-side="B"><span id="pickNameB">Rechts</span><small id="pickTimeB">ab 0:00,0</small></button>
+        </div>
+        <div class="ctrl">
+          <div class="left">
+            <button class="tool" id="btnUndo" type="button"><span class="ic i-undo"></span><span class="lbl">Zurück</span></button>
+            <button class="tool" id="btnRedo" type="button"><span class="ic i-redo"></span><span class="lbl">Vor</span></button>
+          </div>
+          <button class="rec" id="btnRec" type="button" aria-label="Aufnehmen"><span></span></button>
+          <div class="right">
+            <button class="tool" id="btnPreview" type="button"><span class="ic i-play"></span><span class="lbl">Vorschau</span></button>
+          </div>
+        </div>
+        <div class="recLabel" id="recLabel">Links aufnehmen</div>
+        <div class="hint" id="hint"></div>
       </div>
-      <div class="ctrl">
-        <button class="btn" id="btnUndo" type="button">Rückgängig</button>
-        <button class="rec" id="btnRec" type="button" aria-label="Aufnehmen"><span></span></button>
-        <button class="btn" id="btnPreview" type="button">Vorschau</button>
-      </div>
-      <div class="recLabel" id="recLabel">Links aufnehmen</div>
-      <div class="hint" id="hint"></div>
-      <div class="tl">
-        <div class="tlLabels"><span id="labA">Links</span><span id="labB">Rechts</span></div>
-        <div class="tlTracks" id="tlTracks">
-          <div class="track" id="trackA"></div>
-          <div class="track" id="trackB"></div>
-          <div class="tlSel" id="tlSel" hidden></div>
-          <div class="playhead" id="playhead" hidden></div>
+
+      <div class="card">
+        <div class="cardHead"><span>Timeline</span><b id="tlTotal">0:00,0</b></div>
+        <div class="tl">
+          <div class="tlLabels"><span></span><span id="labA">Links</span><span id="labB">Rechts</span></div>
+          <div class="tlTracks" id="tlTracks">
+            <div class="ruler" id="tlRuler"></div>
+            <div class="track" id="trackA"></div>
+            <div class="track" id="trackB"></div>
+            <div class="tlSel" id="tlSel" hidden></div>
+            <div class="playhead" id="playhead" hidden></div>
+          </div>
+        </div>
+        <div class="tlMeta"><span id="tlCount">0 Aufnahmen</span><span>Tippen zum Springen</span></div>
+        <button class="btn i-cut" id="btnCutMode" type="button">Pausen schneiden</button>
+        <div class="cutBar" id="cutBar" hidden>
+          <div class="small" id="cutInfo">Zieh mit dem Finger auf der Zeitleiste über die Pause, die raus soll.</div>
+          <div class="row">
+            <button class="btn primary i-cut" id="btnCutApply" type="button">Ausschneiden</button>
+            <button class="btn" id="btnCutDone" type="button">Fertig</button>
+          </div>
         </div>
       </div>
-      <div class="tlMeta"><span id="tlCount">0 Aufnahmen</span><span id="tlTotal">Länge 0:00,0</span></div>
-      <button class="btn" id="btnCutMode" type="button">Pausen schneiden</button>
-      <div class="cutBar" id="cutBar" hidden>
-        <div class="small" id="cutInfo">Zieh mit dem Finger auf der Zeitleiste über die Pause, die raus soll.</div>
+
+      <div class="card">
+        <div class="cardHead"><span>Export</span><b id="expSpec">9:16 · 1080p · 30 fps</b></div>
+        <button class="btn primary big i-export" id="btnExport" type="button">Video erstellen</button>
         <div class="row">
-          <button class="btn primary" id="btnCutApply" type="button">Ausschneiden</button>
-          <button class="btn" id="btnCutDone" type="button">Fertig</button>
+          <button class="btn i-person" id="btnOnlyA" type="button">Nur links einzeln</button>
+          <button class="btn i-person" id="btnOnlyB" type="button">Nur rechts einzeln</button>
+        </div>
+        <div class="row">
+          <button class="btn ghost i-flip" id="btnFlip" type="button">Kamera drehen</button>
+          <button class="btn ghost danger i-trash" id="btnReset" type="button">Neu anfangen</button>
         </div>
       </div>
-      <button class="btn primary" id="btnExport" type="button">Video erstellen</button>
-      <div class="row">
-        <button class="btn" id="btnOnlyA" type="button">Nur links einzeln</button>
-        <button class="btn" id="btnOnlyB" type="button">Nur rechts einzeln</button>
-      </div>
-      <div class="row">
-        <button class="btn" id="btnFlip" type="button">Kamera drehen</button>
-        <button class="btn danger" id="btnReset" type="button">Neu anfangen</button>
-      </div>
+
       <details>
-        <summary>Tipps</summary>
+        <summary>Tipps für das beste Ergebnis</summary>
         <ul>
           <li>Für den Ein-Raum-Effekt: Handy auf ein Stativ oder fest anlehnen, gleiches Licht, und zwischen den Aufnahmen nicht bewegen. Bleib auf deiner Seite der gestrichelten Linie. Die Linie ist im fertigen Video nicht zu sehen.</li>
+          <li>Schärfstes Bild: Rückkamera statt Selfie-Kamera und viel Licht von vorne.</li>
           <li>Tipp oder zieh auf der Zeitleiste, um zu einer Stelle zu springen. „Vorschau“ spielt dann ab dort.</li>
           <li>„Pausen schneiden“ nimmt eine markierte Stelle bei beiden Seiten raus. Die nächste Aufnahme spielt schon die geschnittene Version ab.</li>
           <li>Der Vorlauf spielt die letzten Sekunden noch mal ab, bevor deine Aufnahme startet. So erwischst du den Einsatz leichter.</li>
-          <li>Ganz am Ende kannst du die andere Seite noch einmal kurz nur reagieren lassen, damit sie nicht einfriert.</li>
+          <li>In TikTok beim Hochladen die Option für hohe Qualität einschalten, falls sie angeboten wird.</li>
           <li>Aufnahmen bleiben in diesem Browser gespeichert, auch wenn die Seite neu lädt.</li>
         </ul>
       </details>
@@ -215,9 +301,37 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
   </main>
 </div>
 
+<div id="startCard">
+  <div class="startInner">
+          <div class="brand"><span class="mark" aria-hidden="true"></span>KlonCam</div>
+          <div class="eyebrow">Splitscreen-Studio</div>
+          <h1>Mit dir selbst reden, ohne Zählen und Raten</h1>
+          <ol>
+            <li>Links sagst du deinen ersten Satz, dann Stopp.</li>
+            <li>Rechts läuft links ab. Du hörst zu, reagierst und antwortest, sobald links fertig ist.</li>
+            <li>Immer abwechselnd weiter, bis das Gespräch steht. Dann „Video erstellen“.</li>
+          </ol>
+          <div class="note">Mit Kopfhörern klappt es am besten, sonst nimmt das Mikro den Lautsprecher mit auf.</div>
+          <div class="note" id="savedNote" hidden></div>
+          <button class="btn primary big" id="btnStart" type="button">Kamera starten</button>
+          <div id="startErr" hidden></div>
+  </div>
+</div>
+
 <div class="sheetBg" id="settingsSheet" hidden>
   <div class="sheet" role="dialog" aria-label="Einstellungen">
     <h2>Einstellungen</h2>
+
+    <h3>Qualität</h3>
+    <div class="field"><label for="optRes">Auflösung</label>
+      <select id="optRes"><option value="720">720p (HD)</option><option value="1080">1080p (Full HD)</option><option value="2160">4K (experimentell)</option></select></div>
+    <div class="field"><label for="optFps">Bildrate</label>
+      <select id="optFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></div>
+    <div class="note">
+      <span><b>Empfehlung für TikTok:</b> 1080p mit 30 fps. Die App nimmt mit hoher Datenrate auf und erstellt das Video verlustarm, damit nach TikToks eigener Komprimierung möglichst viel Schärfe übrig bleibt.</span>
+      <span><b>4K:</b> TikTok zeigt Videos meist in 1080p. 4K kann etwas schärfer wirken, braucht aber etwa viermal so viel Speicher, macht das Handy deutlich wärmer und das Erstellen dauert länger. Kann das Gerät kein 4K, erstellt die App automatisch 1080p.</span>
+      <span><b>Akku:</b> 720p mit 30 fps spart am meisten. 60 fps braucht spürbar mehr Akku und lohnt sich nur bei viel Bewegung.</span>
+    </div>
 
     <h3>Bild</h3>
     <div class="field"><label for="optLayout">Aufteilung</label>
@@ -243,24 +357,13 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
     </div>
     <div class="small">Bei „Kamera drehen“ nimmt die App hinten die normale Kamera, nicht die Weitwinkel-Kamera. Hier kannst du gezielt eine andere wählen.</div>
 
-    <h3>Qualität</h3>
-    <div class="field"><label for="optRes">Auflösung</label>
-      <select id="optRes"><option value="1080">1080p (Full HD)</option><option value="720">720p (HD)</option></select></div>
-    <div class="field"><label for="optFps">Bildrate</label>
-      <select id="optFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></div>
-    <div class="note">
-      <span><b>Akku und Wärme:</b> 720p mit 30 fps spart am meisten. 1080p mit 30 fps ist der beste Kompromiss für TikTok.</span>
-      <span>60 fps braucht spürbar mehr Akku, das Handy wird wärmer und das Erstellen dauert etwa doppelt so lange. Lohnt sich nur bei viel Bewegung.</span>
-      <span>Das fertige Video hat immer genau die eingestellte Bildrate, Ton und Mund bleiben synchron.</span>
-    </div>
-
     <h3>Ton</h3>
     <div class="field"><label for="optPreroll">Vorlauf vor deinem Einsatz</label>
       <select id="optPreroll"><option value="0">aus</option><option value="1">1 s</option><option value="2">2 s</option><option value="3">3 s</option><option value="5">5 s</option></select></div>
     <div class="field"><label for="optAudio">Ton beim Aufnehmen</label>
       <select id="optAudio"><option value="speaker">Lautsprecher</option><option value="headphones">Kopfhörer</option></select></div>
     <div class="small">Stell ein, wie du die andere Seite hörst. Mit Kopfhörern klingt die Stimme am natürlichsten. Beide Seiten werden im fertigen Video automatisch gleich laut gemacht.</div>
-    <button class="btn primary" id="btnCloseSettings" type="button">Fertig</button>
+    <button class="btn primary big" id="btnCloseSettings" type="button">Fertig</button>
   </div>
 </div>
 
@@ -276,10 +379,10 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
       <video id="resVideo" controls playsinline></video>
       <p class="small" id="resInfo"></p>
       <div class="row">
-        <button class="btn primary" id="btnShare" type="button">Teilen / in Fotos sichern</button>
-        <a class="btn" id="btnDownload" href="#" download="klon.mp4">Herunterladen</a>
+        <button class="btn primary i-share" id="btnShare" type="button">Teilen / in Fotos sichern</button>
+        <a class="btn i-export" id="btnDownload" href="#" download="klon.mp4">Herunterladen</a>
       </div>
-      <button class="btn" id="btnExpClose" type="button">Schließen</button>
+      <button class="btn ghost" id="btnExpClose" type="button">Schließen</button>
     </div>
   </div>
 </div>
@@ -295,7 +398,8 @@ details ul{padding-left:18px;margin:8px 0 0;display:grid;gap:4px}
 'use strict';
 const SIDES = ['A', 'B'];
 const $ = s => document.querySelector(s);
-const stage = $('#stage'), g = stage.getContext('2d');
+const stage = $('#stage');
+let g = stage.getContext('2d');
 const camVideo = $('#cam'), mediaBox = $('#mediaBox');
 const other = s => s === 'A' ? 'B' : 'A';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -319,12 +423,19 @@ if (settings.v < 5) Object.assign(settings, { res: '1080', fps: 30, cameraId: ''
 settings.v = 5;
 function saveSettings() { try { localStorage.setItem('kloncam.settings', JSON.stringify(settings)); } catch (e) {} }
 
-let W = 1080, H = 1920;
-function applySize() {
-  W = settings.res === '720' ? 720 : 1080; H = Math.round(W * 16 / 9);
-  if (stage.width !== W) { stage.width = W; stage.height = H; }
+// Everything draws into the current target (g, W, H). The stage is a light 720p preview to save battery;
+// the export swaps in a full-resolution canvas with withTarget().
+const PREVIEW_W = 720, OUT_W = { '720': 720, '1080': 1080, '2160': 2160 };
+let W = PREVIEW_W, H = Math.round(PREVIEW_W * 16 / 9);
+function setStageSize(w) { W = w; H = Math.round(w * 16 / 9); stage.width = W; stage.height = H; }
+setStageSize(PREVIEW_W);
+function withTarget(canvas, fn) {
+  const prev = [g, W, H];
+  g = canvas.getContext('2d'); W = canvas.width; H = canvas.height;
+  try { return fn(); } finally { [g, W, H] = prev; }
 }
-applySize();
+const outWidth = () => OUT_W[settings.res] || 1080;
+const resLabel = () => settings.res === '2160' ? '4K' : settings.res + 'p';
 
 // ---------- state ----------
 // seg: {id, blobId, side, start (timeline s), dur, offset (media time at start), mirror} + runtime video element.
@@ -332,6 +443,7 @@ applySize();
 const state = { segs: [], next: 'A', mode: 'off', cursor: null, cutMode: false, sel: null }; // mode: off | idle | countdown | rec | busy | preview | export
 const media = new Map();   // blobId -> {blob, mime, url, buffer, duration, saved, demux}
 const history = [];        // undo snapshots: {segs: [meta], next}
+const future = [];         // redo snapshots, filled by undo()
 let ac = null, camStream = null, camOn = false, camFacing = 'user', play = null, recCtl = null, exportCtl = null;
 let idleT = 0, cdCancel = false, wakeLock = null, restored = false;
 
@@ -485,7 +597,7 @@ function disposeSegVideo(seg) {
 }
 function referencedBlobs(withHistory) {
   const ids = new Set(state.segs.map(s => s.blobId));
-  if (withHistory) history.forEach(h => h.segs.forEach(s => ids.add(s.blobId)));
+  if (withHistory) [...history, ...future].forEach(h => h.segs.forEach(s => ids.add(s.blobId)));
   return ids;
 }
 function dropUnusedMedia() {
@@ -691,10 +803,27 @@ function layoutTimeline(t) {
   const sel = $('#tlSel'), r = state.cutMode && state.sel ? normSel(state.sel) : null;
   sel.hidden = !r;
   if (r) { sel.style.left = pct(r.a); sel.style.width = pct(r.b - r.a); }
-  $('#tlTotal').textContent = 'Länge ' + fmt(total());
+  $('#tlTotal').textContent = fmt(total());
+  drawRuler(scale);
   $('#tlCount').textContent = state.segs.length === 1 ? '1 Aufnahme' : `${state.segs.length} Aufnahmen`;
 }
-const normSel = s => ({ a: Math.max(0, Math.min(s.a, s.b)), b: Math.min(total(), Math.max(s.a, s.b)) });
+// time ruler above the tracks; rebuilt only when the visible range changes
+let rulerScale = 0;
+function drawRuler(scale) {
+  if (Math.abs(scale - rulerScale) < 0.05) return;
+  rulerScale = scale;
+  const step = [1, 2, 5, 10, 15, 30, 60, 120].find(s => scale / s <= 7) || 300;
+  const minor = step >= 10 ? step / 5 : step / 2, el = $('#tlRuler');
+  el.textContent = '';
+  for (let t = 0; t <= scale; t += minor) {
+    const tk = document.createElement('div'), major = Math.abs(t / step - Math.round(t / step)) < 1e-6;
+    tk.className = 'tk' + (major ? ' major' : '');
+    tk.style.left = (t / scale * 100) + '%';
+    if (major && t / scale < 0.92) { const b = document.createElement('b'); b.textContent = `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`; tk.appendChild(b); }
+    el.appendChild(tk);
+  }
+}
+const normSel = s =>({ a: Math.max(0, Math.min(s.a, s.b)), b: Math.min(total(), Math.max(s.a, s.b)) });
 
 // scrubbing: tap or drag on the timeline to look at that moment; in cut mode the drag marks a range
 const tracksEl = $('#tlTracks');
@@ -732,9 +861,12 @@ tracksEl.addEventListener('pointerup', endDrag);
 tracksEl.addEventListener('pointercancel', endDrag);
 
 // ---------- editing: cut a range out of both sides, undo ----------
+const snapshot = () => ({ segs: state.segs.map(metaOf), next: state.next });
+// a new edit starts a new branch: whatever was undone can no longer be redone
 function pushHistory() {
-  history.push({ segs: state.segs.map(metaOf), next: state.next });
+  history.push(snapshot());
   if (history.length > 40) history.shift();
+  future.length = 0;
 }
 async function cutRange(a, b) {
   const d = b - a, metas = [];
@@ -752,10 +884,12 @@ async function undo() {
   if (state.mode !== 'idle') return;
   if (history.length) {
     const snap = history.pop();
+    future.push(snapshot());
     state.mode = 'busy'; updateUI();
     await setSegs(snap.segs);
     state.next = snap.next;
-  } else if (state.segs.length) {
+  } else if (state.segs.length) { // after a reload there is no history: drop the last take
+    future.push(snapshot());
     const s = state.segs.pop();
     disposeSegVideo(s);
     state.next = s.side;
@@ -765,6 +899,19 @@ async function undo() {
   await saveAll();
   await goIdle();
   toast('Rückgängig gemacht.');
+}
+async function redo() {
+  if (state.mode !== 'idle' || !future.length) return;
+  const snap = future.pop();
+  history.push(snapshot());
+  state.mode = 'busy'; updateUI();
+  await setSegs(snap.segs);
+  state.next = snap.next;
+  state.cursor = null;
+  dropUnusedMedia();
+  await saveAll();
+  await goIdle();
+  toast('Wiederhergestellt.');
 }
 
 // ---------- UI state ----------
@@ -798,8 +945,15 @@ function updateUI() {
   rb.setAttribute('aria-label', m === 'rec' ? 'Stopp' : 'Aufnehmen');
   $('#recLabel').textContent = m === 'rec' ? 'Stopp' : m === 'countdown' ? 'Abbrechen' : `${sideName(n)} aufnehmen`;
   $('#btnUndo').disabled = !idle || (!has && !history.length);
+  $('#btnRedo').disabled = !idle || !future.length;
+  const q = `${resLabel()} · ${settings.fps}`;
+  $('#qBadge').textContent = q;
+  $('#expSpec').textContent = `9:16 · ${resLabel()} · ${settings.fps} fps`;
+  $('#nextInfo').textContent = m === 'rec' && recCtl ? `Take ${state.segs.length + 1} läuft` : `Take ${state.segs.length + 1}`;
   $('#btnPreview').disabled = !has || !(idle || m === 'preview');
-  $('#btnPreview').textContent = m === 'preview' ? 'Stopp' : 'Vorschau';
+  $('#btnPreview .lbl').textContent = m === 'preview' ? 'Stopp' : 'Vorschau';
+  $('#btnPreview').classList.toggle('stopping', m === 'preview');
+  $('#btnPreview .ic').className = 'ic ' + (m === 'preview' ? 'i-stop' : 'i-play');
   $('#btnExport').disabled = !idle || !has;
   for (const s of SIDES) {
     $('#btnOnly' + s).textContent = `Nur ${sideName(s).toLowerCase()} einzeln`;
@@ -848,8 +1002,8 @@ async function mainBackCamera() {
 }
 async function openCamera() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
-  const big = settings.res !== '720';
-  const video = { width: { ideal: big ? 1920 : 1280 }, height: { ideal: big ? 1080 : 720 }, frameRate: { ideal: settings.fps } };
+  const camW = { '720': 1280, '1080': 1920, '2160': 3840 }[settings.res] || 1920;
+  const video = { width: { ideal: camW }, height: { ideal: Math.round(camW * 9 / 16) }, frameRate: { ideal: settings.fps } };
   if (settings.cameraId) video.deviceId = { exact: settings.cameraId }; else video.facingMode = settings.facing;
   // Auto gain stays off in both modes (it pumps the level mid-sentence); buildMix() levels the sides instead.
   // Echo cancellation stays on for the speaker: without it iOS routes playback to the quiet earpiece.
@@ -901,6 +1055,8 @@ async function enable() {
     if (!window.MediaRecorder) throw new Error('Dieser Browser kann keine Videos aufnehmen. Nimm Safari oder Chrome in aktueller Version.');
     ac = ac || new (window.AudioContext || window.webkitAudioContext)();
     ac.resume().catch(() => {});
+    // ask the browser not to evict the stored takes when space runs low
+    try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
     await openCamera();
     camOn = true;
     $('#startCard').hidden = true;
@@ -953,7 +1109,7 @@ async function startRecording() {
   const now = audioOk ? () => ac.currentTime : () => performance.now() / 1000;
   const mime = pickMime(CAM_TYPES);
   let rec;
-  try { rec = new MediaRecorder(camStream, mime ? { mimeType: mime, videoBitsPerSecond: settings.res === '720' ? 4e6 : 8e6 } : undefined); }
+  try { rec = new MediaRecorder(camStream, mime ? { mimeType: mime, videoBitsPerSecond: { '720': 8e6, '1080': 16e6, '2160': 40e6 }[settings.res] || 16e6 } : undefined); }
   catch (e) { rec = new MediaRecorder(camStream); }
   const chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
@@ -1077,9 +1233,12 @@ class SegReader {
   }
   close() { this.frames.forEach(f => f.close()); this.frames = []; try { this.dec.close(); } catch (e) {} }
 }
+// H.264 High profile at generous bitrates, so TikTok's own re-compression starts from a clean master
 async function pickVideoConfig(w, h, fps) {
-  const bitrate = (w >= 1080 ? 12e6 : 6e6) * (fps > 30 ? 1.5 : 1);
-  const codecs = fps > 30 ? ['avc1.64002a', 'avc1.640033', 'avc1.4d002a', 'avc1.640028'] : ['avc1.640028', 'avc1.64002a', 'avc1.4d0028', 'avc1.42e028', 'avc1.42e01f'];
+  const bitrate = ({ 720: 10e6, 1080: 20e6, 2160: 45e6 }[w] || 20e6) * (fps > 30 ? 1.4 : 1);
+  const codecs = w > 1080
+    ? (fps > 30 ? ['avc1.640034', 'avc1.640033'] : ['avc1.640033', 'avc1.640034', 'avc1.4d0033'])
+    : fps > 30 ? ['avc1.64002a', 'avc1.640033', 'avc1.4d002a', 'avc1.640028'] : ['avc1.640028', 'avc1.64002a', 'avc1.4d0028', 'avc1.42e028', 'avc1.42e01f'];
   for (const codec of codecs) {
     const cfg = { codec, width: w, height: h, bitrate, framerate: fps, avc: { format: 'avc' } };
     try { const r = await VideoEncoder.isConfigSupported(cfg); if (r.supported) return cfg; } catch (e) {}
@@ -1088,14 +1247,16 @@ async function pickVideoConfig(w, h, fps) {
 }
 async function exportOffline(only) {
   const fps = settings.fps, tot = total(), n = Math.max(1, Math.round(tot * fps));
-  const vcfg = await pickVideoConfig(W, H, fps);
+  let ow = outWidth(), note = '', vcfg = await pickVideoConfig(ow, Math.round(ow * 16 / 9), fps);
+  if (!vcfg && ow > 1080) { ow = 1080; note = 'Dieses Gerät kann 4K nicht kodieren, deshalb 1080p.'; vcfg = await pickVideoConfig(ow, 1920, fps); }
   if (!vcfg) throw new Error('H.264 nicht verfügbar');
+  const out = document.createElement('canvas'); out.width = ow; out.height = Math.round(ow * 16 / 9);
   const sr = ac.sampleRate;
-  const acfg = { codec: 'mp4a.40.2', sampleRate: sr, numberOfChannels: 2, bitrate: 192000 };
-  if (!(await AudioEncoder.isConfigSupported(acfg)).supported) throw new Error('AAC nicht verfügbar');
+  const acfg = { codec: 'mp4a.40.2', sampleRate: sr, numberOfChannels: 2, bitrate: 256000 };
+  if (!(await AudioEncoder.isConfigSupported(acfg)).supported) { acfg.bitrate = 192000; if (!(await AudioEncoder.isConfigSupported(acfg)).supported) throw new Error('AAC nicht verfügbar'); }
   const target = new Mp4Muxer.ArrayBufferTarget();
   const muxer = new Mp4Muxer.Muxer({ target, fastStart: 'in-memory',
-    video: { codec: 'avc', width: W, height: H, frameRate: fps },
+    video: { codec: 'avc', width: out.width, height: out.height, frameRate: fps },
     audio: { codec: 'aac', numberOfChannels: 2, sampleRate: sr } });
   let encErr = null;
   const venc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { encErr = e; } });
@@ -1129,14 +1290,16 @@ async function exportOffline(only) {
         const f = await rd.frameAt(mt);
         if (f) src[side] = { el: f, w: f.displayWidth, h: f.displayHeight, mirror: s.mirror, rot: rd.d.rot };
       }
-      renderFrame(src.A, src.B, true, only);
-      const vf = new VideoFrame(stage, { timestamp: Math.round(k * 1e6 / fps), duration: Math.round(1e6 / fps) });
+      withTarget(out, () => renderFrame(src.A, src.B, true, only));
+      const vf = new VideoFrame(out, { timestamp: Math.round(k * 1e6 / fps), duration: Math.round(1e6 / fps) });
       venc.encode(vf, { keyFrame: k % (fps * 2) === 0 });
       vf.close();
       while (venc.encodeQueueSize > 4) await tick();
       if (k % 6 === 0) {
-        $('#expBar').style.width = (k / n * 100) + '%';
-        $('#expInfo').textContent = `Bild ${k + 1} von ${n} · ${fps} fps`;
+        g.drawImage(out, 0, 0, W, H); // show the render on the preview
+        const pct = Math.round(k / n * 100);
+        $('#expBar').style.width = pct + '%';
+        $('#expInfo').textContent = `${pct} % · Bild ${k + 1} von ${n} · ${out.width === 2160 ? '4K' : out.width + 'p'} · ${fps} fps`;
         await tick();
       }
     }
@@ -1147,7 +1310,7 @@ async function exportOffline(only) {
   if (encErr) throw encErr;
   muxer.finalize();
   try { venc.close(); aenc.close(); } catch (e) {}
-  return new Blob([target.buffer], { type: 'video/mp4' });
+  return { blob: new Blob([target.buffer], { type: 'video/mp4' }), w: out.width, h: out.height, note };
 }
 // Fallback for browsers without WebCodecs: records the stage in real time (frame rate can wobble).
 function exportRealtime(only) {
@@ -1190,20 +1353,24 @@ async function startExport(only) {
   $('#expInfo').textContent = 'Lass den Bildschirm an und die App im Vordergrund.';
   $('#exportSheet').hidden = false;
   requestWake();
-  let blob = null, realtime = false;
+  let res = null, realtime = false;
   if (canOffline()) {
-    try { blob = await exportOffline(only); }
+    try { res = await exportOffline(only); }
     catch (e) {
       if (exportCtl.cancel) { exportCtl = null; $('#exportSheet').hidden = true; await goIdle(); return; }
       console.warn('offline export failed, falling back to real time', e);
       lastExportError = String(e && e.message || e);
     }
   }
-  if (!blob) {
+  if (!res) {
     realtime = true;
     await ensureAudio();
-    blob = await exportRealtime(only);
+    setStageSize(Math.min(outWidth(), 1080)); // the real-time path records the stage itself
+    const w = W, h = H, b = await exportRealtime(only);
+    setStageSize(PREVIEW_W);
+    res = b ? { blob: b, w, h, note: '' } : null;
   }
+  const blob = res && res.blob;
   const fps = settings.fps;
   exportCtl = null;
   await goIdle();
@@ -1220,8 +1387,9 @@ async function startExport(only) {
   let canShare = false;
   try { canShare = !!(navigator.canShare && navigator.canShare({ files: [resultFile] })); } catch (err) {}
   $('#btnShare').hidden = !canShare;
-  $('#resInfo').textContent = `${fmt(total())} · ${(blob.size / 1048576).toFixed(1)} MB · ${ext.toUpperCase()} · ${W}×${H} · ` +
-    (realtime ? `Echtzeit-Modus: dieser Browser kann die Bildrate nicht fest einhalten.${lastExportError ? ' (' + lastExportError + ')' : ''}` : `genau ${fps} fps`);
+  $('#resInfo').textContent = `${fmt(total())} · ${(blob.size / 1048576).toFixed(1)} MB · ${ext.toUpperCase()} · ${res.w}×${res.h} · ` +
+    (realtime ? `Echtzeit-Modus: dieser Browser kann die Bildrate nicht fest einhalten.${lastExportError ? ' (' + lastExportError + ')' : ''}` : `genau ${fps} fps`) +
+    (res.note ? ' · ' + res.note : '');
   $('#expTitle').textContent = 'Fertig';
   $('#expRun').hidden = true; $('#expDone').hidden = false;
 }
@@ -1300,6 +1468,7 @@ document.querySelectorAll('#sidePick button').forEach(b => b.addEventListener('c
 }));
 $('#btnLive').addEventListener('click', () => { if (state.mode !== 'idle') return; state.cursor = null; goIdle(); });
 $('#btnUndo').addEventListener('click', undo);
+$('#btnRedo').addEventListener('click', redo);
 $('#btnPreview').addEventListener('click', () => {
   if (state.mode === 'idle') startPreview(); else if (state.mode === 'preview') stopPreview();
 });
@@ -1338,9 +1507,9 @@ $('#btnFlip').addEventListener('click', async () => {
 $('#btnReset').addEventListener('click', async () => {
   if (state.mode !== 'idle' || !state.segs.length) return;
   if (!confirm('Alle Aufnahmen löschen und neu anfangen?')) return;
+  pushHistory(); // "Zurück" can bring the project back while the app stays open
   state.segs.forEach(disposeSegVideo);
   state.segs = []; state.next = 'A'; state.cursor = null; state.cutMode = false; state.sel = null;
-  history.length = 0;
   dropUnusedMedia();
   await saveAll();
   await goIdle();
@@ -1349,7 +1518,7 @@ function showSplit() {
   const v = Math.round(settings.split * 100);
   $('#splitVal').textContent = v === 50 ? 'Mitte' : `${v} % ${settings.layout === 'lr' ? 'links' : 'oben'}`;
 }
-$('#btnSettings').addEventListener('click', () => {
+function openSettings() {
   $('#optLayout').value = settings.layout;
   $('#optLook').value = settings.look;
   $('#optSplit').value = String(Math.round(settings.split * 100)); showSplit();
@@ -1362,7 +1531,9 @@ $('#btnSettings').addEventListener('click', () => {
   $('#optFps').value = String(settings.fps);
   if (camOn) fillCameraList();
   $('#settingsSheet').hidden = false;
-});
+}
+$('#btnSettings').addEventListener('click', openSettings);
+$('#qBadge').addEventListener('click', openSettings);
 $('#optLayout').addEventListener('change', e => { settings.layout = e.target.value; saveSettings(); showSplit(); updateUI(); });
 $('#optLook').addEventListener('change', e => { settings.look = e.target.value; saveSettings(); updateUI(); });
 $('#optSplit').addEventListener('input', e => {
@@ -1386,7 +1557,7 @@ $('#optZoom').addEventListener('input', e => {
   const vt = camStream && camStream.getVideoTracks()[0];
   if (vt) vt.applyConstraints({ advanced: [{ zoom: settings.zoom }] }).catch(() => {});
 });
-$('#optRes').addEventListener('change', e => { settings.res = e.target.value; saveSettings(); if (state.mode === 'idle' || state.mode === 'off') applySize(); reopenCamera('Kamera ließ sich nicht neu starten.'); });
+$('#optRes').addEventListener('change', e => { settings.res = e.target.value; saveSettings(); updateUI(); reopenCamera('Kamera ließ sich nicht neu starten.'); });
 $('#optFps').addEventListener('change', e => { settings.fps = +e.target.value; saveSettings(); reopenCamera('Kamera ließ sich nicht neu starten.'); });
 $('#btnCloseSettings').addEventListener('click', () => { $('#settingsSheet').hidden = true; });
 $('#settingsSheet').addEventListener('click', e => { if (e.target.id === 'settingsSheet') e.target.hidden = true; });
