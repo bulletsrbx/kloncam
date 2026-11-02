@@ -353,9 +353,11 @@ details ul{padding-left:18px;margin:10px 0 0;display:grid;gap:6px}
       <select id="optFps"><option value="30">30 fps</option><option value="60">60 fps</option></select></div>
     <div class="note">
       <span><b>Empfehlung für TikTok:</b> 1080p mit 30 fps. Die App nimmt mit hoher Datenrate auf und erstellt das Video verlustarm, damit nach TikToks eigener Komprimierung möglichst viel Schärfe übrig bleibt.</span>
-      <span><b>4K:</b> TikTok zeigt Videos meist in 1080p. 4K kann etwas schärfer wirken, braucht aber etwa viermal so viel Speicher, macht das Handy deutlich wärmer und das Erstellen dauert länger. Kann das Gerät kein 4K, erstellt die App automatisch 1080p.</span>
+      <span><b>4K:</b> TikTok zeigt Videos meist in 1080p. 4K kann etwas schärfer wirken, braucht aber etwa viermal so viel Speicher, macht das Handy deutlich wärmer und das Erstellen dauert länger. Der Export prüft den Encoder mit einem Testbild. Ist 4K nicht verfügbar, wird 1080p mit derselben festen Bildrate erstellt und im Ergebnis angezeigt.</span>
       <span><b>Akku:</b> 720p mit 30 fps spart am meisten. 60 fps braucht spürbar mehr Akku und lohnt sich nur bei viel Bewegung.</span>
     </div>
+
+    <div class="small" id="cameraInfo">Die tatsächliche Kameraauflösung und Bildrate werden nach dem Start angezeigt.</div>
 
     <h3>Bild</h3>
     <div class="field"><label for="optLayout">Aufteilung</label>
@@ -435,7 +437,9 @@ const tick = (() => {
   return () => new Promise(r => { q.push(r); mc.port2.postMessage(0); });
 })();
 
-const CAM_TYPES = ['video/mp4;codecs=avc1.42E01F,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a', 'video/mp4',
+// Let the recorder choose an H.264 level matching the actual resolution/rate.
+// Forcing Baseline Level 3.1 here can break 1080p, 4K and 60 fps on iOS.
+const CAM_TYPES = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4',
   'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 
 // ---------- settings ----------
@@ -592,7 +596,7 @@ async function seekTo(v, t) {
   v.currentTime = t;
   await p;
 }
-function decode(buf) { return new Promise((res, rej) => ac.decodeAudioData(buf, res, rej)); }
+function decode(buf) { return ac.decodeAudioData(buf); }
 async function prepMedia(blobId, blob, mime) {
   let m = media.get(blobId);
   if (m && m.url) return m;
@@ -609,7 +613,8 @@ async function makeSegVideo(seg) {
   v.src = m.url;
   mediaBox.appendChild(v);
   seg.video = v;
-  if (v.readyState < 2) await waitEvent(v, 'loadeddata', 8000);
+  if (v.readyState < 2 && !await waitEvent(v, 'loadeddata', 8000)) throw new Error('Die Aufnahme enthält kein lesbares Videobild');
+  if (!v.videoWidth || v.error) throw new Error('Die Aufnahme enthält kein lesbares Videobild');
   if (!isFinite(v.duration)) { // WebM from MediaRecorder has no duration until scanned
     const p = waitEvent(v, 'durationchange', 4000); v.currentTime = 1e7; await p;
   }
@@ -757,14 +762,18 @@ function syncVideos(t, running) {
   }
 }
 
-// ---------- main loop (capped at ~30 fps: enough for the screen, saves battery) ----------
-let lastDraw = 0;
+// ---------- preview loop: follow the selected 30/60 fps, independently of export ----------
+let nextDraw = 0, previewFps = 0;
 function loop(ts) {
   requestAnimationFrame(loop);
   if (state.mode === 'off') return;
-  if (state.mode === 'export' && !(exportCtl && exportCtl.realtime)) return; // offline export draws itself
-  if (ts - lastDraw < 1000 / 31) return;
-  lastDraw = ts;
+  if (state.mode === 'export') return; // export draws every frame with its own exact timestamp
+  const fps = settings.fps === 60 ? 60 : 30, interval = 1000 / fps;
+  if (fps !== previewFps) { previewFps = fps; nextDraw = 0; }
+  if (!nextDraw || ts - nextDraw > interval) nextDraw = ts;
+  // Keep a fixed cadence across 60/120 Hz displays; allow small rAF timestamp jitter.
+  if (ts + 0.5 < nextDraw) return;
+  nextDraw += interval;
   let t, live = null, liveFrom = Infinity, clean = false;
   const only = state.mode === 'export' && exportCtl ? exportCtl.only : null;
   if (play) {
@@ -787,10 +796,7 @@ function onFrame(t) {
     tag.classList.toggle('rec', !pre);
   }
   if (state.mode === 'preview' && t >= total() + 0.05) stopPreview();
-  if (state.mode === 'export' && exportCtl && exportCtl.realtime && play) {
-    $('#expBar').style.width = Math.min(100, t / exportCtl.total * 100) + '%';
-    if (t >= exportCtl.total + 0.1) finishRealtime(false);
-  }
+
 }
 
 // ---------- timeline ----------
@@ -1107,7 +1113,7 @@ async function mainBackCamera() {
 async function openCamera() {
   if (camStream) camStream.getTracks().forEach(t => t.stop());
   const camW = { '720': 1280, '1080': 1920, '2160': 3840 }[settings.res] || 1920;
-  const video = { width: { ideal: camW }, height: { ideal: Math.round(camW * 9 / 16) }, frameRate: { ideal: settings.fps } };
+  const video = { width: { ideal: camW }, height: { ideal: Math.round(camW * 9 / 16) }, frameRate: { ideal: settings.fps, max: settings.fps } };
   if (settings.cameraId) video.deviceId = { exact: settings.cameraId }; else video.facingMode = settings.facing;
   // Auto gain stays off in both modes (it pumps the level mid-sentence); buildMix() levels the sides instead.
   // Echo cancellation stays on for the speaker: without it iOS routes playback to the quiet earpiece.
@@ -1121,10 +1127,14 @@ async function openCamera() {
     delete video.deviceId; video.facingMode = settings.facing;
     camStream = await navigator.mediaDevices.getUserMedia({ video, audio });
   }
+  const cameraReady = waitEvent(camVideo, 'loadeddata', 10000);
   camVideo.srcObject = camStream;
-  await camVideo.play().catch(() => {});
+  await camVideo.play();
+  if (camVideo.readyState < 2 && !await cameraReady) throw new Error('Die Kamera liefert bei dieser Qualität kein Bild. Versuche 1080p mit 30 fps.');
   const vt = camStream.getVideoTracks()[0], st = vt && vt.getSettings ? vt.getSettings() : {};
   camFacing = st.facingMode || (settings.cameraId ? (isFrontLabel(vt.label) ? 'user' : 'environment') : settings.facing);
+  const actualFps = Number.isFinite(st.frameRate) ? secs(st.frameRate) + ' fps' : 'Bildrate unbekannt';
+  $('#cameraInfo').textContent = `Kamera liefert ${st.width || camVideo.videoWidth}×${st.height || camVideo.videoHeight} · ${actualFps}. Der Export berechnet feste ${settings.fps} fps; fehlende Kamerabilder werden wiederholt.`;
   applyZoom();
   fillCameraList();
   fillLensRow();
@@ -1250,15 +1260,30 @@ async function startRecording() {
   const now = audioOk ? () => ac.currentTime : () => performance.now() / 1000;
   const mime = pickMime(CAM_TYPES);
   let rec;
-  try { rec = new MediaRecorder(camStream, mime ? { mimeType: mime, videoBitsPerSecond: { '720': 8e6, '1080': 16e6, '2160': 40e6 }[settings.res] || 16e6 } : undefined); }
+  try { rec = new MediaRecorder(camStream, mime ? { mimeType: mime, videoBitsPerSecond: ({ '720': 8e6, '1080': 16e6, '2160': 40e6 }[settings.res] || 16e6) * (settings.fps > 30 ? 1.4 : 1), audioBitsPerSecond: 192000 } : undefined); }
   catch (e) { rec = new MediaRecorder(camStream); }
   const chunks = [];
   rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
   // the start event is unreliable (Chrome may never fire it), so media time 0 = the start() call
   const Rs = now();
-  rec.start(500);
-  await startPlayback({ from: T0, live: side, liveFrom: tX, clock: audioOk ? 'audio' : 'perf' });
-  recCtl = { rec, chunks, side, tX, T0, Rs, C0: play.C0, now: play.now, mime: rec.mimeType || mime, mirror: liveMirror() };
+  const r = { rec, chunks, side, tX, T0, Rs, C0: Rs, now, mime: rec.mimeType || mime, mirror: liveMirror(), error: null };
+  recCtl = r;
+  rec.onerror = ev => {
+    r.error = ev.error || new Error('Kameraaufnahme fehlgeschlagen');
+    if (state.mode === 'rec') stopRecording();
+  };
+  try {
+    rec.start(500);
+    await startPlayback({ from: T0, live: side, liveFrom: tX, clock: audioOk ? 'audio' : 'perf' });
+    if (r.error) throw r.error;
+    r.C0 = play.C0; r.now = play.now;
+  } catch (e) {
+    if (rec.state !== 'inactive') rec.stop();
+    recCtl = null; stopPlayback();
+    await goIdle();
+    toast('Aufnahme konnte bei dieser Qualität nicht starten. Versuche 1080p mit 30 fps.');
+    return;
+  }
   state.mode = 'rec';
   updateUI();
   requestWake();
@@ -1272,6 +1297,7 @@ async function stopRecording() {
   const stopped = new Promise(res => { r.rec.onstop = res; });
   try { r.rec.stop(); } catch (e) {}
   await Promise.race([stopped, sleep(4000)]);
+  if (r.error) { toast('Kameraaufnahme fehlgeschlagen. Frühere Aufnahmen bleiben erhalten.'); await goIdle(); return; }
   const dur = tStop - r.tX;
   if (dur < 0.3) { toast('Zu kurz, nichts gespeichert.'); await goIdle(); return; }
   if (!r.chunks.length) { toast('Die Kamera hat nichts geliefert. Versuch es noch mal.'); await goIdle(); return; }
@@ -1306,7 +1332,14 @@ async function stopPreview() {
 // ---------- export ----------
 // Offline export: decodes every take frame by frame (WebCodecs), draws each output frame at exactly
 // k / fps and muxes it with the finished audio mix. Constant frame rate, sample-exact sync, any speed.
-const canOffline = () => !!(window.VideoEncoder && window.VideoDecoder && window.AudioEncoder && window.AudioData && window.VideoFrame && window.MP4Box && window.Mp4Muxer);
+const canOffline = () => !!(window.VideoEncoder && window.AudioEncoder && window.AudioData && window.VideoFrame && window.Mp4Muxer);
+const checkExport = () => { if (exportCtl && exportCtl.cancel) throw new Error('Export abgebrochen'); };
+async function codecWait(promise, label) {
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label + ': Zeitüberschreitung')), 15000); })]);
+  } finally { clearTimeout(timer); }
+}
 function demux(ab) {
   return new Promise((resolve, reject) => {
     const file = MP4Box.createFile(), samples = [];
@@ -1333,18 +1366,19 @@ function demux(ab) {
     const mx = tr.matrix || [65536, 0, 0, 0, 65536, 0, 0, 0, 1073741824];
     const rot = ((Math.round(Math.atan2(mx[1], mx[0]) * 180 / Math.PI) % 360) + 360) % 360;
     const t0 = samples.length ? Math.min(...samples.slice(0, 60).map(s => s.cts)) : 0;
+    file.stop();
     resolve({ samples, rot, t0, config: { codec: tr.codec, codedWidth: tr.video ? tr.video.width : tr.track_width, codedHeight: tr.video ? tr.video.height : tr.track_height, description } });
   });
 }
 class SegReader {
   static async open(seg, startAt) {
     const m = media.get(seg.blobId);
-    if (!m.demux) m.demux = await demux(await m.blob.arrayBuffer());
-    if (!m.demux.samples.length) throw new Error('mp4: keine Bilder');
+    const data = await demux(await m.blob.arrayBuffer());
+    if (!data.samples.length) throw new Error('mp4: keine Bilder');
     const r = new SegReader();
-    r.d = m.demux; r.frames = []; r.err = null; r.done = false; r.flushing = null;
+    r.d = data; r.frames = []; r.err = null; r.done = false; r.flushing = null;
     r.dec = new VideoDecoder({ output: f => r.frames.push(f), error: e => { r.err = e; } });
-    r.dec.configure(r.d.config);
+    try { r.dec.configure(r.d.config); } catch (e) { r.close(); throw e; }
     // start decoding at the last key frame before the wanted time
     const sm = r.d.samples, want = startAt * sm[0].timescale + r.d.t0;
     r.i = 0;
@@ -1354,7 +1388,10 @@ class SegReader {
   // latest decoded frame whose time is <= mt (seconds of media time)
   async frameAt(mt) {
     const us = mt * 1e6, sm = this.d.samples;
-    for (let guard = 0; guard < 20000; guard++) {
+    const deadline = performance.now() + 15000;
+    for (;;) {
+      checkExport();
+      if (performance.now() > deadline) throw new Error('Videobild konnte nicht dekodiert werden');
       if (this.err) throw this.err;
       while (this.frames.length >= 2 && this.frames[1].timestamp <= us) this.frames.shift().close();
       if (this.frames.length >= 2 || (this.done && !this.flushing)) break;
@@ -1370,156 +1407,245 @@ class SegReader {
       }
       await tick();
     }
-    return this.frames[0] || null;
+    if (!this.frames.length) throw new Error('Die Videospur hat kein lesbares Bild geliefert');
+    return this.frames[0];
   }
   close() { this.frames.forEach(f => f.close()); this.frames = []; try { this.dec.close(); } catch (e) {} }
 }
-// H.264 High profile at generous bitrates, so TikTok's own re-compression starts from a clean master
+// A video-element reader also handles older recordings that WebCodecs cannot decode.
+// Seeking is slower, but encoding still uses exact frame timestamps, never wall-clock capture.
+class ElementReader {
+  static async open(seg) {
+    const r = new ElementReader(), v = document.createElement('video');
+    r.video = v; r.rot = 0;
+    v.muted = true; v.playsInline = true; v.preload = 'auto';
+    mediaBox.appendChild(v);
+    const loaded = waitEvent(v, 'loadeddata', 10000);
+    v.src = media.get(seg.blobId).url;
+    try {
+      if (v.readyState < 2 && !await loaded) throw new Error('Aufnahme konnte nicht geladen werden');
+      return r;
+    } catch (e) { r.close(); throw e; }
+  }
+  async frameAt(mt) {
+    checkExport();
+    const v = this.video;
+    if (Number.isFinite(v.duration)) mt = Math.min(mt, Math.max(0, v.duration - 0.001));
+    if (Math.abs(v.currentTime - mt) > 0.000001) {
+      const sought = waitEvent(v, 'seeked', 10000);
+      v.currentTime = mt;
+      if (!await sought) throw new Error('Videobild konnte nicht geladen werden');
+    }
+    if (v.readyState < 2 || !v.videoWidth) throw new Error('Aufnahme hat kein lesbares Bild');
+    return v;
+  }
+  close() { disposeSegVideo({ video: this.video }); }
+}
+async function openReader(seg, mt) {
+  if (window.VideoDecoder && window.MP4Box) {
+    try { return await SegReader.open(seg, mt); } catch (e) { console.warn('Using video-element reader', e); }
+  }
+  return ElementReader.open(seg);
+}
+// Main/High profiles with levels large enough for the selected dimensions and fps.
+// Probe actual encoding too: isConfigSupported alone does not reserve an iOS hardware encoder.
 async function pickVideoConfig(w, h, fps) {
   const bitrate = ({ 720: 10e6, 1080: 20e6, 2160: 45e6 }[w] || 20e6) * (fps > 30 ? 1.4 : 1);
-  const codecs = w > 1080
-    ? (fps > 30 ? ['avc1.640034', 'avc1.640033'] : ['avc1.640033', 'avc1.640034', 'avc1.4d0033'])
-    : fps > 30 ? ['avc1.64002a', 'avc1.640033', 'avc1.4d002a', 'avc1.640028'] : ['avc1.640028', 'avc1.64002a', 'avc1.4d0028', 'avc1.42e028', 'avc1.42e01f'];
-  for (const codec of codecs) {
-    const cfg = { codec, width: w, height: h, bitrate, framerate: fps, avc: { format: 'avc' } };
-    try { const r = await VideoEncoder.isConfigSupported(cfg); if (r.supported) return cfg; } catch (e) {}
-  }
-  return null;
+  const level = w > 1080 ? (fps > 30 ? '34' : '33') : fps > 30 ? '2a' : '28';
+  const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d', { alpha: false }); ctx.fillStyle = '#284960'; ctx.fillRect(0, 0, w, h);
+  try {
+    for (const profile of ['4d00', '6400', '4200']) {
+      checkExport();
+      const cfg = { codec: 'avc1.' + profile + level, width: w, height: h, bitrate, framerate: fps,
+        latencyMode: 'realtime', avc: { format: 'avc' } };
+      let enc, frame, failure = null, count = 0;
+      try {
+        if (!(await VideoEncoder.isConfigSupported(cfg)).supported) continue;
+        enc = new VideoEncoder({ output: () => { count++; }, error: e => { failure = e; } });
+        enc.configure(cfg);
+        frame = new VideoFrame(canvas, { timestamp: 0, duration: Math.round(1e6 / fps) });
+        enc.encode(frame, { keyFrame: true }); frame.close(); frame = null;
+        await codecWait(enc.flush(), 'Encoder-Test');
+        if (!failure && count === 1) return cfg;
+      } catch (e) { console.warn('Encoder configuration unavailable', cfg.codec, e); }
+      finally { if (frame) frame.close(); if (enc && enc.state !== 'closed') enc.close(); }
+    }
+    return null;
+  } finally { canvas.width = canvas.height = 1; }
 }
 async function exportOffline(only) {
-  const fps = settings.fps, tot = total(), n = Math.max(1, Math.round(tot * fps));
+  const fps = settings.fps, n = Math.max(1, Math.ceil(total() * fps));
   let ow = outWidth(), note = '', vcfg = await pickVideoConfig(ow, Math.round(ow * 16 / 9), fps);
-  if (!vcfg && ow > 1080) { ow = 1080; note = 'Dieses Gerät kann 4K nicht kodieren, deshalb 1080p.'; vcfg = await pickVideoConfig(ow, 1920, fps); }
-  if (!vcfg) throw new Error('H.264 nicht verfügbar');
+  if (!vcfg && ow > 1080) {
+    ow = 1080; note = '4K-Encoding ist hier nicht verfügbar; Export in 1080p.';
+    vcfg = await pickVideoConfig(ow, 1920, fps);
+  }
+  if (!vcfg) throw new Error(`Der Browser kann ${ow}p mit ${fps} fps gerade nicht kodieren. Versuche 1080p mit 30 fps.`);
   const out = document.createElement('canvas'); out.width = ow; out.height = Math.round(ow * 16 / 9);
   const sr = ac.sampleRate;
-  const acfg = { codec: 'mp4a.40.2', sampleRate: sr, numberOfChannels: 2, bitrate: 256000 };
-  if (!(await AudioEncoder.isConfigSupported(acfg)).supported) { acfg.bitrate = 192000; if (!(await AudioEncoder.isConfigSupported(acfg)).supported) throw new Error('AAC nicht verfügbar'); }
+  const acfg = { codec: 'mp4a.40.2', sampleRate: sr, numberOfChannels: 2, bitrate: 192000 };
+  if (!(await AudioEncoder.isConfigSupported(acfg)).supported) throw new Error('AAC-Tonexport wird von diesem Browser nicht unterstützt.');
   const target = new Mp4Muxer.ArrayBufferTarget();
-  const muxer = new Mp4Muxer.Muxer({ target, fastStart: 'in-memory',
+  const muxer = new Mp4Muxer.Muxer({ target, fastStart: 'in-memory', firstTimestampBehavior: 'offset',
     video: { codec: 'avc', width: out.width, height: out.height, frameRate: fps },
     audio: { codec: 'aac', numberOfChannels: 2, sampleRate: sr } });
-  let encErr = null;
-  const venc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { encErr = e; } });
-  venc.configure(vcfg);
-  const aenc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: e => { encErr = e; } });
-  aenc.configure(acfg);
-  // audio: the finished mix, cut to exactly the video length
-  const mix = buildMix(only), L = mix.getChannelData(0), R = mix.getChannelData(1), alen = Math.min(mix.length, Math.round(n / fps * sr));
-  for (let i = 0; i < alen; i += 4096) {
-    const k = Math.min(4096, alen - i), data = new Float32Array(k * 2);
-    data.set(L.subarray(i, i + k), 0); data.set(R.subarray(i, i + k), k);
-    const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: k, numberOfChannels: 2, timestamp: Math.round(i * 1e6 / sr), data });
-    aenc.encode(ad); ad.close();
-  }
-  await aenc.flush();
-  // video: one exact frame per 1/fps
+  let encErr = null, videoCount = 0, audioCount = 0, ai = 0, venc, aenc, audioT0;
   const readers = new Map();
   try {
+    venc = new VideoEncoder({ output: (c, m) => {
+      try {
+        // Realtime latency disables B-frame reordering. Refuse missing/reordered output.
+        const expected = Math.round(videoCount * 1e6 / fps);
+        if (Math.abs(c.timestamp - expected) > 1) throw new Error('Encoder hat ein Videobild ausgelassen oder umsortiert');
+        const data = new Uint8Array(c.byteLength); c.copyTo(data);
+        muxer.addVideoChunkRaw(data, c.type, expected, Math.round((videoCount + 1) * 1e6 / fps) - expected, m);
+        videoCount++;
+      } catch (e) { encErr = e; }
+    }, error: e => { encErr = e; } });
+    venc.configure(vcfg);
+    aenc = new AudioEncoder({ output: (c, m) => {
+      try {
+        if (audioT0 === undefined) audioT0 = c.timestamp;
+        muxer.addAudioChunk(c, m, c.timestamp - audioT0); audioCount++;
+      } catch (e) { encErr = e; }
+    }, error: e => { encErr = e; } });
+    aenc.configure(acfg);
+    const mix = buildMix(only), L = mix.getChannelData(0), R = mix.getChannelData(1);
+    const alen = Math.min(mix.length, Math.round(n / fps * sr));
+    // Interleave audio and video; do not enqueue minutes of audio before the first video frame.
+    const audioUntil = async end => {
+      while (ai < Math.min(alen, end)) {
+        checkExport(); if (encErr) throw encErr;
+        const len = Math.min(4096, alen - ai), data = new Float32Array(len * 2);
+        data.set(L.subarray(ai, ai + len)); data.set(R.subarray(ai, ai + len), len);
+        const ad = new AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: len,
+          numberOfChannels: 2, timestamp: Math.round(ai * 1e6 / sr), data });
+        try { aenc.encode(ad); } finally { ad.close(); }
+        ai += len;
+        const deadline = performance.now() + 15000;
+        while (aenc.encodeQueueSize > 4) {
+          checkExport(); if (encErr) throw encErr;
+          if (performance.now() > deadline) throw new Error('Tonencoder antwortet nicht');
+          await tick();
+        }
+      }
+    };
     for (let k = 0; k < n; k++) {
-      if (exportCtl.cancel) throw new Error('cancel');
-      if (encErr) throw encErr;
+      checkExport(); if (encErr) throw encErr;
       const t = k / fps, src = { A: null, B: null };
       for (const side of SIDES) {
         if (only && side !== only) continue;
-        const s = segToShow(side, t);
-        if (!s) continue;
+        const s = segToShow(side, t); if (!s) continue;
         for (const [id, rd] of readers) if (rd.side === side && id !== s.id) { rd.close(); readers.delete(id); }
         const mt = s.offset + Math.min(Math.max(0, t - s.start), Math.max(0, s.dur - 0.001));
         let rd = readers.get(s.id);
-        if (!rd) { rd = await SegReader.open(s, mt); rd.side = side; readers.set(s.id, rd); }
-        const f = await rd.frameAt(mt);
-        if (f) src[side] = { el: f, w: f.displayWidth, h: f.displayHeight, mirror: s.mirror, rot: rd.d.rot };
+        if (!rd) { rd = await openReader(s, mt); rd.side = side; readers.set(s.id, rd); }
+        let f;
+        try { f = await rd.frameAt(mt); }
+        catch (e) {
+          checkExport();
+          if (rd instanceof ElementReader) throw e;
+          rd.close(); readers.delete(s.id);
+          rd = await ElementReader.open(s); rd.side = side; readers.set(s.id, rd);
+          f = await rd.frameAt(mt);
+        }
+        src[side] = { el: f, w: f.displayWidth || f.videoWidth, h: f.displayHeight || f.videoHeight,
+          mirror: s.mirror, rot: rd.d ? rd.d.rot : 0 };
       }
       withTarget(out, () => renderFrame(src.A, src.B, true, only));
-      const vf = new VideoFrame(out, { timestamp: Math.round(k * 1e6 / fps), duration: Math.round(1e6 / fps) });
-      venc.encode(vf, { keyFrame: k % (fps * 2) === 0 });
-      vf.close();
-      while (venc.encodeQueueSize > 4) await tick();
+      const timestamp = Math.round(k * 1e6 / fps), duration = Math.round((k + 1) * 1e6 / fps) - timestamp;
+      const vf = new VideoFrame(out, { timestamp, duration });
+      try { venc.encode(vf, { keyFrame: k % (fps * 2) === 0 }); } finally { vf.close(); }
+      const deadline = performance.now() + 15000;
+      while (venc.encodeQueueSize > 4) {
+        checkExport(); if (encErr) throw encErr;
+        if (performance.now() > deadline) throw new Error('Videoencoder antwortet nicht');
+        await tick();
+      }
+      await audioUntil(Math.round((k + 1) / fps * sr));
       if (k % 6 === 0) {
-        g.drawImage(out, 0, 0, W, H); // show the render on the preview
+        g.drawImage(out, 0, 0, W, H);
         const pct = Math.round(k / n * 100);
         $('#expBar').style.width = pct + '%';
         $('#expInfo').textContent = `${pct} % · Bild ${k + 1} von ${n} · ${out.width === 2160 ? '4K' : out.width + 'p'} · ${fps} fps`;
         await tick();
       }
     }
-    await venc.flush();
+    await audioUntil(alen);
+    await codecWait(venc.flush(), 'Videoabschluss');
+    await codecWait(aenc.flush(), 'Tonabschluss');
+    checkExport(); if (encErr) throw encErr;
+    if (videoCount !== n || !audioCount) throw new Error('Export unvollständig; bitte erneut versuchen.');
+    muxer.finalize();
+    return { blob: new Blob([target.buffer], { type: 'video/mp4' }), w: out.width, h: out.height,
+      fps, frames: n, duration: n / fps, note };
   } finally {
     readers.forEach(rd => rd.close());
+    if (venc && venc.state !== 'closed') venc.close();
+    if (aenc && aenc.state !== 'closed') aenc.close();
+    out.width = out.height = 1;
   }
-  if (encErr) throw encErr;
-  muxer.finalize();
-  try { venc.close(); aenc.close(); } catch (e) {}
-  return { blob: new Blob([target.buffer], { type: 'video/mp4' }), w: out.width, h: out.height, note };
 }
-// Fallback for browsers without WebCodecs: records the stage in real time (frame rate can wobble).
-function exportRealtime(only) {
-  return new Promise(async resolve => {
-    const tot = total();
-    exportCtl.realtime = true; exportCtl.resolve = resolve;
-    await positionAt(0);
-    const mix = buildMix(only);
-    const dest = ac.createMediaStreamDestination();
-    const vs = stage.captureStream(settings.fps);
-    const stream = new MediaStream([...vs.getVideoTracks(), ...dest.stream.getAudioTracks()]);
-    const mime = pickMime(CAM_TYPES), opts = { videoBitsPerSecond: 10e6, audioBitsPerSecond: 192000 };
-    if (mime) opts.mimeType = mime;
-    const rec = new MediaRecorder(stream, opts), chunks = [];
-    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-    rec.start(500);
-    Object.assign(exportCtl, { rec, chunks, vs, total: tot, mime: rec.mimeType || mime });
-    $('#expInfo').textContent = 'Läuft in Echtzeit mit. Lass den Bildschirm an.';
-    await startPlayback({ from: 0, dest, only, mix });
-  });
+let resultUrl = null, resultFile = null, exportRestore = null;
+async function restoreAfterExport() {
+  const restore = exportRestore; exportRestore = null;
+  if (restore) await restore();
 }
-async function finishRealtime(cancel) {
-  const e = exportCtl; if (!e || e.done || !e.rec) return;
-  e.done = true;
-  stopPlayback();
-  const stopped = new Promise(r => { e.rec.onstop = r; });
-  e.rec.stop();
-  await Promise.race([stopped, sleep(4000)]);
-  e.vs.getTracks().forEach(t => t.stop());
-  e.resolve(cancel ? null : new Blob(e.chunks, { type: (e.mime || 'video/webm').split(';')[0] }));
-}
-let resultUrl = null, resultFile = null, lastExportError = '';
 async function startExport(only) {
-  exportCtl = { only: only || null, cancel: false, realtime: false, done: false };
-  lastExportError = '';
-  state.cursor = null;
+  const ctl = { only: only || null, cancel: false };
+  exportCtl = ctl;
+  state.cursor = null; stopPlayback();
   state.mode = 'export'; updateUI();
   $('#expTitle').textContent = only ? `${sideName(only)} wird einzeln erstellt …` : 'Video wird erstellt …';
   $('#expRun').hidden = false; $('#expDone').hidden = true; $('#expBar').style.width = '0%';
-  $('#expInfo').textContent = 'Lass den Bildschirm an und die App im Vordergrund.';
+  $('#btnExpCancel').textContent = 'Abbrechen';
+  $('#expInfo').textContent = 'Export wird geprüft. Lass die App im Vordergrund.';
   $('#exportSheet').hidden = false;
   requestWake();
-  let res = null, realtime = false;
-  if (canOffline()) {
-    try { res = await exportOffline(only); }
-    catch (e) {
-      if (exportCtl.cancel) { exportCtl = null; $('#exportSheet').hidden = true; await goIdle(); return; }
-      console.warn('offline export failed, falling back to real time', e);
-      lastExportError = String(e && e.message || e);
+  const resumeCamera = camOn;
+  let res = null, failure = null;
+  exportRestore = async () => {
+    for (const seg of state.segs) if (!seg.video) {
+      try { await makeSegVideo(seg); } catch (e) { console.warn('Preview restore failed', e); }
     }
-  }
-  if (!res) {
-    realtime = true;
+    if (resumeCamera && !camStream) {
+      try { await openCamera(); camOn = true; } catch (e) { toast('Kamera bitte über „Kamera drehen“ neu starten.'); }
+    }
+    await goIdle();
+  };
+  try {
+    if (!canOffline()) throw new Error('Dieser Browser unterstützt den Export mit fester Bildrate nicht. Aktualisiere iOS/Safari und versuche es erneut.');
+    // iOS shares hardware between the camera, video elements and WebCodecs. Release it first.
+    if (camStream) camStream.getTracks().forEach(t => t.stop());
+    camStream = null; camVideo.srcObject = null; camOn = false;
+    state.segs.forEach(disposeSegVideo);
     await ensureAudio();
-    setStageSize(Math.min(outWidth(), 1080)); // the real-time path records the stage itself
-    const w = W, h = H, b = await exportRealtime(only);
-    setStageSize(PREVIEW_W);
-    res = b ? { blob: b, w, h, note: '' } : null;
+    checkExport();
+    res = await exportOffline(only);
+  } catch (e) {
+    if (!ctl.cancel) { failure = e; console.error('Export failed', e); }
+  } finally {
+    exportCtl = null;
+    if (!res || ctl.cancel) {
+      $('#expInfo').textContent = 'Kamera wird wieder vorbereitet …';
+      await restoreAfterExport();
+    }
+    // Keep camera and take decoders released while the result video is on screen.
+    // The close button restores them after releasing the result decoder.
   }
-  const blob = res && res.blob;
-  const fps = settings.fps;
-  exportCtl = null;
-  await goIdle();
-  if (!blob) { $('#exportSheet').hidden = true; return; }
-  const type = blob.type || 'video/mp4', ext = type.includes('mp4') ? 'mp4' : 'webm';
+  if (ctl.cancel) { $('#exportSheet').hidden = true; return; }
+  if (failure || !res) {
+    $('#expTitle').textContent = 'Export nicht erstellt';
+    $('#expInfo').textContent = (failure && failure.message || 'Bitte erneut versuchen.') + ' Deine Aufnahmen bleiben erhalten.';
+    $('#btnExpCancel').textContent = 'Schließen';
+    return;
+  }
+  const blob = res.blob, type = 'video/mp4';
   const d = new Date(), p = x => String(x).padStart(2, '0');
   const part = only ? '-' + sideName(only).toLowerCase() : '';
-  const name = `klon${part}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.${ext}`;
+  const name = `klon${part}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.mp4`;
+  $('#resVideo').pause(); $('#resVideo').removeAttribute('src'); $('#resVideo').load();
   if (resultUrl) URL.revokeObjectURL(resultUrl);
   resultUrl = URL.createObjectURL(blob);
   resultFile = new File([blob], name, { type });
@@ -1528,8 +1654,7 @@ async function startExport(only) {
   let canShare = false;
   try { canShare = !!(navigator.canShare && navigator.canShare({ files: [resultFile] })); } catch (err) {}
   $('#btnShare').hidden = !canShare;
-  $('#resInfo').textContent = `${fmt(total())} · ${(blob.size / 1048576).toFixed(1)} MB · ${ext.toUpperCase()} · ${res.w}×${res.h} · ` +
-    (realtime ? `Echtzeit-Modus: dieser Browser kann die Bildrate nicht fest einhalten.${lastExportError ? ' (' + lastExportError + ')' : ''}` : `genau ${fps} fps`) +
+  $('#resInfo').textContent = `${fmt(res.duration)} · ${(blob.size / 1048576).toFixed(1)} MB · MP4 · ${res.w}×${res.h} · feste ${res.fps} fps` +
     (res.note ? ' · ' + res.note : '');
   $('#expTitle').textContent = 'Fertig';
   $('#expRun').hidden = true; $('#expDone').hidden = false;
@@ -1598,7 +1723,10 @@ async function restore() {
 $('#btnStart').addEventListener('click', enable);
 $('#btnRec').addEventListener('click', () => {
   if (ac && ac.state !== 'running') ac.resume().catch(() => {}); // must happen inside the tap, before any await
-  if (state.mode === 'idle') startRecording();
+  if (state.mode === 'idle') startRecording().catch(async e => {
+    console.error('Recording failed', e); stopPlayback();
+    await goIdle(); toast('Aufnahme konnte nicht gestartet werden. Prüfe Kamera und Qualität.');
+  });
   else if (state.mode === 'countdown') cdCancel = true;
   else if (state.mode === 'rec') stopRecording();
 });
@@ -1636,11 +1764,14 @@ document.querySelectorAll('#cutScope button').forEach(b => b.addEventListener('c
 $('#btnExport').addEventListener('click', () => { if (state.mode === 'idle' && state.segs.length) startExport(); });
 SIDES.forEach(s => $('#btnOnly' + s).addEventListener('click', () => { if (state.mode === 'idle' && state.segs.length) startExport(s); }));
 $('#btnExpCancel').addEventListener('click', () => {
-  if (!exportCtl) return;
+  if (!exportCtl) { $('#exportSheet').hidden = true; return; }
   exportCtl.cancel = true;
-  if (exportCtl.realtime) finishRealtime(true);
 });
-$('#btnExpClose').addEventListener('click', () => { $('#exportSheet').hidden = true; $('#resVideo').pause(); });
+$('#btnExpClose').addEventListener('click', async () => {
+  $('#exportSheet').hidden = true;
+  const v = $('#resVideo'); v.pause(); v.removeAttribute('src'); v.load();
+  await restoreAfterExport();
+});
 $('#btnShare').addEventListener('click', async () => {
   try { await navigator.share({ files: [resultFile], title: 'KlonCam' }); } catch (e) {}
 });
